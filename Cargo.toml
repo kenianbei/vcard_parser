@@ -1,0 +1,21 @@
+[package]
+name = "vcard_parser"
+version = "0.1.0"
+authors = ["Norman Kerr"]
+edition = "2021"
+description = "Parses and validates vCard data according to RFC 6350 specification."
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/kenianbei/vcard_parser"
+documentation = "https://docs.rs/vcard_parser"
+keywords = ["vcard", "parser", "rfc6350"]
+categories = ["parsing", "data-structures", "email", "encoding"]
+include = ["src/", "LICENSE", "README.md"]
+
+[dependencies]
+chrono = "0.4.22"
+language-tags = "0.3.2"
+regex = "1.6.0"
+thiserror = "1.0.37"
+url = "2.3.1"
+uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }

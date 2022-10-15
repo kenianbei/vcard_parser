@@ -3,9 +3,9 @@
 Parses and validates vCard data according to RFC 6350 specification.
 
 ![rust](https://github.com/kenianbei/vcard_parser/actions/workflows/rust.yml/badge.svg)
-![crates](https://img.shields.io/crates/v/vcard_parser.svg)
-![license](https://shields.io/badge/license-MIT-%23373737)
-![release](https://img.shields.io/github/v/release/kenianbei/vcard_parser)
+[![crates](https://img.shields.io/crates/v/vcard_parser.svg)](https://crates.io/crates/vcard_parser)
+[![license](https://shields.io/badge/license-MIT-%23373737)](https://github.com/kenianbei/vcard_parser/blob/main/LICENSE)
+[![release](https://img.shields.io/github/v/release/kenianbei/vcard_parser)](https://github.com/kenianbei/vcard_parser/tags)
 
 ## Installation
 

@@ -1,7 +1,5 @@
 use std::fmt::{Display, Formatter};
 
-use chrono::{TimeZone, Utc};
-
 use crate::vcard::parameter::types::ParameterType;
 use crate::vcard::properties::adr::adr_get_value;
 use crate::vcard::properties::anniversary::anniversary_get_value;
@@ -67,9 +65,9 @@ pub enum ValueData {
     /// Represents a client pid, see: [RFC 6350 6.7.7](https://datatracker.ietf.org/doc/html/rfc6350#section-6.7.7).
     ClientPidMap((f32, String)),
     /// Represents a date value, see [RFC 6350 4.3](https://datatracker.ietf.org/doc/html/rfc6350#section-4.3).
-    Date((i32, u32, u32)),
+    Date((i32, u8, u8)),
     /// Represents a multiple data values, see [RFC 6350 4.3](https://datatracker.ietf.org/doc/html/rfc6350#section-4.3).
-    DateList(Vec<(i32, u32, u32)>),
+    DateList(Vec<(i32, u8, u8)>),
     /// Represents a float number, see [RFC 6350 4.6](https://datatracker.ietf.org/doc/html/rfc6350#section-4.6).
     Float(f32),
     /// Represents multiple float numbers, see [RFC 6350 4.6](https://datatracker.ietf.org/doc/html/rfc6350#section-4.6).
@@ -171,8 +169,8 @@ impl Display for ValueData {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ValueData::Boolean(value) => write!(f, "{}", value),
-            ValueData::Date((year, month, day)) => write!(f, "{}", Utc.ymd(*year, *month, *day).format("%Y-%m-%d")),
-            ValueData::DateList(value) => write!(f, "{}", value.iter().map(|(year, month, day)| format!("{}-{}-{}", year, month, day)).collect::<Vec<String>>().join(";")),
+            ValueData::Date((year, month, day)) => write!(f, "{}-{:02}-{:02}", year, month, day),
+            ValueData::DateList(value) => write!(f, "{}", value.iter().map(|(year, month, day)| format!("{}-{:02}-{:02}", year, month, day)).collect::<Vec<String>>().join(";")),
             ValueData::Float(value) => write!(f, "{}", value),
             ValueData::FloatList(value) => write!(f, "{}", value.iter().map(|f| f.to_string()).collect::<Vec<String>>().join(";")),
             ValueData::Integer(value) => write!(f, "{}", value),

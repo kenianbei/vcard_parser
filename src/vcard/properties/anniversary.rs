@@ -1,5 +1,4 @@
-use chrono::{DateTime, Datelike, NaiveDate};
-
+use crate::util::parse_date;
 use crate::vcard::parameter::types::ParameterType;
 use crate::vcard::property::types::PROPERTY_TYPE_ANNIVERSARY;
 use crate::vcard::values::data::ValueData;
@@ -13,14 +12,8 @@ pub fn anniversary_get_value(str: &str, kind: &Option<ValueKind>) -> Result<Valu
         }
     }
 
-    if let Ok(date) = DateTime::parse_from_rfc3339(str) {
-        return Ok(ValueData::Date((date.year(), date.month(), date.day())));
-    }
-    if let Ok(date) = NaiveDate::parse_from_str(str, "%Y%m%d") {
-        return Ok(ValueData::Date((date.year(), date.month(), date.day())));
-    }
-    if let Ok(date) = NaiveDate::parse_from_str(str, "%Y-%m-%d") {
-        return Ok(ValueData::Date((date.year(), date.month(), date.day())));
+    if let Some(date) = parse_date(str) {
+        return Ok(ValueData::Date(date));
     }
 
     Ok(ValueData::Text(str.to_string()))
@@ -47,8 +40,12 @@ mod tests {
         let result = anniversary_get_value("", &Some(ValueKind::Date));
         assert!(matches!(result, Ok(ValueData::Text(_))));
         let result = anniversary_get_value("2000-01-01", &Some(ValueKind::Date));
-        assert!(matches!(result, Ok(ValueData::Date(_))));
+        assert!(matches!(result, Ok(ValueData::Date((2000, 1, 1)))));
         let result = anniversary_get_value("20000101", &Some(ValueKind::Date));
-        assert!(matches!(result, Ok(ValueData::Date(_))));
+        assert!(matches!(result, Ok(ValueData::Date((2000, 1, 1)))));
+        let result = anniversary_get_value("Sat, 01 Jan 2000 00:00:00 GMT", &Some(ValueKind::Date));
+        assert!(matches!(result, Ok(ValueData::Date((2000, 1, 1)))));
+        let result = anniversary_get_value("2000-01-01T00:00:00.000000000-00:00", &Some(ValueKind::Date));
+        assert!(matches!(result, Ok(ValueData::Date((2000, 1, 1)))));
     }
 }

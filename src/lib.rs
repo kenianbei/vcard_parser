@@ -68,6 +68,9 @@ use crate::vcard::Vcard;
 /// Contains API error types.
 pub mod error;
 
+/// Contains utility functions.
+pub mod util;
+
 /// Main vCard object for parsing, storing, and exporting vCard data.
 pub mod vcard;
 

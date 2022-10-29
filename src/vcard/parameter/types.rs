@@ -9,7 +9,7 @@ pub const PARAMETER_TYPE_CC: &str = "CC";
 pub const PARAMETER_TYPE_GEO: &str = "GEO";
 pub const PARAMETER_TYPE_INDEX: &str = "INDEX";
 pub const PARAMETER_TYPE_LABEL: &str = "LABEL";
-pub const PARAMETER_TYPE_LANGAUGE: &str = "LANGUAGE";
+pub const PARAMETER_TYPE_LANGUAGE: &str = "LANGUAGE";
 pub const PARAMETER_TYPE_LEVEL: &str = "LEVEL";
 pub const PARAMETER_TYPE_MEDIATYPE: &str = "MEDIATYPE";
 pub const PARAMETER_TYPE_PID: &str = "PID";
@@ -51,7 +51,7 @@ impl TryFrom<&str> for ParameterType {
             PARAMETER_TYPE_GEO => Ok(ParameterType::Geo),
             PARAMETER_TYPE_INDEX => Ok(ParameterType::Index),
             PARAMETER_TYPE_LABEL => Ok(ParameterType::Label),
-            PARAMETER_TYPE_LANGAUGE => Ok(ParameterType::Language),
+            PARAMETER_TYPE_LANGUAGE => Ok(ParameterType::Language),
             PARAMETER_TYPE_LEVEL => Ok(ParameterType::Level),
             PARAMETER_TYPE_MEDIATYPE => Ok(ParameterType::MediaType),
             PARAMETER_TYPE_PID => Ok(ParameterType::Pid),
@@ -75,7 +75,7 @@ impl Display for ParameterType {
             ParameterType::Geo => PARAMETER_TYPE_GEO,
             ParameterType::Index => PARAMETER_TYPE_INDEX,
             ParameterType::Label => PARAMETER_TYPE_LABEL,
-            ParameterType::Language => PARAMETER_TYPE_LANGAUGE,
+            ParameterType::Language => PARAMETER_TYPE_LANGUAGE,
             ParameterType::Level => PARAMETER_TYPE_LEVEL,
             ParameterType::MediaType => PARAMETER_TYPE_MEDIATYPE,
             ParameterType::Pid => PARAMETER_TYPE_PID,

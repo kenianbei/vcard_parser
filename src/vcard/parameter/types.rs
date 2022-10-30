@@ -94,7 +94,22 @@ mod tests {
     use crate::vcard::parameter::types::ParameterType;
 
     #[test]
-    pub fn types() {
-        assert_eq!(ParameterType::Type.to_string().as_str(), "TYPE");
+    pub fn parameter_types() {
+        assert_eq!(ParameterType::try_from("ALTID").unwrap().to_string().as_str(), "ALTID");
+        assert_eq!(ParameterType::try_from("ANY").unwrap().to_string().as_str(), "ANY");
+        assert_eq!(ParameterType::try_from("CALSCALE").unwrap().to_string().as_str(), "CALSCALE");
+        assert_eq!(ParameterType::try_from("CC").unwrap().to_string().as_str(), "CC");
+        assert_eq!(ParameterType::try_from("GEO").unwrap().to_string().as_str(), "GEO");
+        assert_eq!(ParameterType::try_from("INDEX").unwrap().to_string().as_str(), "INDEX");
+        assert_eq!(ParameterType::try_from("LABEL").unwrap().to_string().as_str(), "LABEL");
+        assert_eq!(ParameterType::try_from("LANGUAGE").unwrap().to_string().as_str(), "LANGUAGE");
+        assert_eq!(ParameterType::try_from("LEVEL").unwrap().to_string().as_str(), "LEVEL");
+        assert_eq!(ParameterType::try_from("MEDIATYPE").unwrap().to_string().as_str(), "MEDIATYPE");
+        assert_eq!(ParameterType::try_from("PID").unwrap().to_string().as_str(), "PID");
+        assert_eq!(ParameterType::try_from("PREF").unwrap().to_string().as_str(), "PREF");
+        assert_eq!(ParameterType::try_from("SORT-AS").unwrap().to_string().as_str(), "SORT-AS");
+        assert_eq!(ParameterType::try_from("TYPE").unwrap().to_string().as_str(), "TYPE");
+        assert_eq!(ParameterType::try_from("TZ").unwrap().to_string().as_str(), "TZ");
+        assert_eq!(ParameterType::try_from("VALUE").unwrap().to_string().as_str(), "VALUE");
     }
 }

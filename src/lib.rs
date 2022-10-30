@@ -2,27 +2,36 @@
 //!
 //! Parses and validates vCard data according to RFC 6350 specification.
 //!
-//! ## Installation
+//! ## Creating vCards
 //!
-//! Add the library to the dependencies section of your cargo.toml file.
+//! ```rust
+//! use vcard_parser::vcard::Vcard;
 //!
-//! ```toml
-//! [dependencies]
-//! vcard_parser = "0.1.0"
+//! let mut vcard = Vcard::default();
+//! vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
+//! println!("{}", vcard.to_string());
 //! ```
 //!
 //! ## Parsing vCards
 //!
-//! Reading a vcf file, updating the vCard object, and writing back to the file.
+//! vCards can be parsed from a string containing multiple vCards or a single vCard.
+//!
+//! When parsing you typically would just use the [parse_to_vcards](parse_to_vcards) or [parse_to_vcards_without_errors](parse_to_vcards_without_errors)
+//! functions. You can also use [Vcard::from](Vcard::from) and [Vcard::try_from](Vcard::try_from<&str>()), but without passing
+//! BEGIN:VCARD and END:VCARD delimiters. See the main [Vcard](Vcard) struct for more information.
+//!
+//! ### Parsing from file
+//!
+//! Read a vcf file and ignore invalid properties, update the vCard object, and write back to file.
 //!
 //! ```rust
 //! use std::fs;
 //! use std::fs::read_to_string;
-//! use vcard_parser::parse_to_vcards;
+//! use vcard_parser::parse_to_vcards_without_errors;
 //! use vcard_parser::vcard::property::types::PropertyType;
 //!
 //! if let Ok(string) = read_to_string("contacts.vcf") {
-//!     let mut vcards = parse_to_vcards(string.as_str()).unwrap();
+//!     let mut vcards = parse_to_vcards_without_errors(string.as_str());
 //!
 //!     let mut vcard = vcards.first().unwrap().clone();
 //!     let property = vcard.get_property_by_type(&PropertyType::Fn).unwrap();
@@ -36,26 +45,6 @@
 //!     }
 //!     fs::write("contacts.vcf", data).expect("Unable to write file.");
 //! }
-//! ```
-//!
-//! ## Parsing a single vCard
-//!
-//! ```rust
-//! use vcard_parser::vcard::Vcard;
-//!
-//! let mut vcard = Vcard::try_from("VERSION:4.0\nFN:John Doe\n").unwrap();
-//! vcard.add_property("NICKNAME:Johnny").unwrap();
-//! println!("{}", vcard.to_string());
-//! ```
-//!
-//! ### Creating a new vCard
-//!
-//! ```rust
-//! use vcard_parser::vcard::Vcard;
-//!
-//! let mut vcard = Vcard::default();
-//! vcard.add_property("NICKNAME:Johnny").unwrap();
-//! println!("{}", vcard.to_string());
 //! ```
 
 pub extern crate uuid;
@@ -74,7 +63,10 @@ pub mod util;
 /// Main vCard object for parsing, storing, and exporting vCard data.
 pub mod vcard;
 
-/// Parses a vCard string and returns either a [VcardError](VcardError) or an array of individual vCard strings as the result.
+/// Parse a string and return an array of individual vCard strings as the result.
+///
+/// This function will capture all strings delimited by BEGIN:VCARD and END:VCARD, returning an array
+/// of strings without the delimiters.
 ///
 /// # Examples
 /// ```
@@ -87,25 +79,33 @@ pub mod vcard;
 /// END:VCARD
 /// "#;
 ///
-/// let vcard_strings = parse_to_strings(text).expect("Unable to parse text.");
+/// let vcard_strings = parse_to_strings(text);
 /// assert_eq!(vcard_strings.len(), 1);
 /// ```
-pub fn parse_to_strings(input: &str) -> Result<Vec<String>, VcardError> {
+pub fn parse_to_strings(input: &str) -> Vec<String> {
     let mut data: Vec<String> = Vec::new();
 
     let input = Regex::new(r"(?mi)^\s*(BEGIN|END):VCARD\s*?$").unwrap().replace_all(input, "$1:VCARD");
     let input = Regex::new(r"(?mi)\n\s").unwrap().replace_all(&*input, "");
-    let input = Regex::new(r"(?mi)^X-.*\n").unwrap().replace_all(&*input, "");
 
-    let regex = Regex::new(r"(?mi)\s*?BEGIN:VCARD\s*?$\n([\s\S]*?)\s*?END:VCARD\s*?$\n?").unwrap();
-    for cap in regex.captures_iter(&*input) {
-        data.push(cap[1].to_string())
+    if let Ok(regex) = Regex::new(r"(?mi)\s*?BEGIN:VCARD\s*?$\n([\s\S]*?)\s*?END:VCARD\s*?$\n?") {
+        for captures in regex.captures_iter(&*input) {
+            if let Some(capture) = captures.get(1) {
+                data.push(capture.as_str().to_string())
+            }
+        }
     }
 
-    Ok(data)
+    data
 }
 
-/// Parses a vCard string and returns either a [VcardError](VcardError) or an array of [Vcard](Vcard)s as the result.
+/// Parses a string and returns either a [VcardError](VcardError) or an array of [Vcard](Vcard)s as the result.
+///
+/// The input string can be a single vCard or multiple vCards, and should be delimited by BEGIN:VCARD and END:VCARD.
+///
+/// This function will fail on vCards with x-param or iana-token types, as well as custom parameters. Use the other
+/// version [parse_to_vcards_without_errors](parse_to_vcards_without_errors) to ignore properties that are unknown or contain unknown properties
+/// or custom parameters.
 ///
 /// # Examples
 /// ```
@@ -124,16 +124,47 @@ pub fn parse_to_strings(input: &str) -> Result<Vec<String>, VcardError> {
 pub fn parse_to_vcards(input: &str) -> Result<Vec<Vcard>, VcardError> {
     let mut vcards = Vec::new();
 
-    for string in parse_to_strings(input)? {
+    for string in parse_to_strings(input) {
         vcards.push(Vcard::try_from(string.as_str())?);
     }
 
     Ok(vcards)
 }
 
+/// Parses a vCard string and returns an array of vCards.
+///
+/// The input string can be a single vCard or multiple vCards, and should be delimited by BEGIN:VCARD and END:VCARD.
+///
+/// This function will ignore x-param or iana-token properties, as well as custom parameters. Use the other version
+/// [parse_to_vcards](parse_to_vcards) if you vcards with x-param, iana-token, or other custom types to fail completely.
+///
+/// # Examples
+/// ```
+/// use vcard_parser::parse_to_vcards_without_errors;
+///
+/// let text = r#"
+/// BEGIN:VCARD
+/// VERSION:4.0
+/// FN:John Doe
+/// END:VCARD
+/// "#;
+///
+/// let vcards = parse_to_vcards_without_errors(text);
+/// assert_eq!(vcards.len(), 1);
+/// ```
+pub fn parse_to_vcards_without_errors(input: &str) -> Vec<Vcard> {
+    let mut vcards = Vec::new();
+
+    for string in parse_to_strings(input) {
+        vcards.push(Vcard::from(string.as_str()));
+    }
+
+    vcards
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{parse_to_vcards, VcardError};
+    use crate::{parse_to_vcards, parse_to_vcards_without_errors, VcardError};
 
     #[test]
     fn vcard_no_version() {
@@ -206,16 +237,42 @@ mod tests {
 
     #[test]
     fn vcard_x_param_single() {
-        let text = r#"
-BEGIN:VCARD
+        let text = r#"BEGIN:VCARD
 VERSION:4.0
 FN:John Doe
 ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
 X-ABADR:us
 END:VCARD
 "#;
-        let result = parse_to_vcards(text);
-        assert_eq!(result.unwrap().len(), 1);
+        let expected = r#"BEGIN:VCARD
+VERSION:4.0
+FN:John Doe
+ADR;TYPE=HOME;TYPE=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
+END:VCARD
+"#;
+        let result = parse_to_vcards_without_errors(text);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].to_string(), expected);
+    }
+
+    #[test]
+    fn vcard_x_param_grouped() {
+        let text = r#"BEGIN:VCARD
+VERSION:4.0
+FN:John Doe
+item1.ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
+item1.X-ABADR:us
+END:VCARD
+"#;
+        let expected = r#"BEGIN:VCARD
+VERSION:4.0
+FN:John Doe
+ADR;TYPE=HOME;TYPE=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
+END:VCARD
+"#;
+        let result = parse_to_vcards_without_errors(text);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].to_string(), expected);
     }
 
     #[test]

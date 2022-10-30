@@ -95,7 +95,8 @@ pub fn parse_to_strings(input: &str) -> Result<Vec<String>, VcardError> {
 
     let input = Regex::new(r"(?mi)^\s*(BEGIN|END):VCARD\s*?$").unwrap().replace_all(input, "$1:VCARD");
     let input = Regex::new(r"(?mi)\n\s").unwrap().replace_all(&*input, "");
-
+    let input = Regex::new(r"(?mi)^X-.*\n").unwrap().replace_all(&*input, "");
+    
     let regex = Regex::new(r"(?mi)\s*?BEGIN:VCARD\s*?$\n([\s\S]*?)\s*?END:VCARD\s*?$\n?").unwrap();
     for cap in regex.captures_iter(&*input) {
         data.push(cap[1].to_string())

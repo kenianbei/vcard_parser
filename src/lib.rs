@@ -96,7 +96,7 @@ pub fn parse_to_strings(input: &str) -> Result<Vec<String>, VcardError> {
     let input = Regex::new(r"(?mi)^\s*(BEGIN|END):VCARD\s*?$").unwrap().replace_all(input, "$1:VCARD");
     let input = Regex::new(r"(?mi)\n\s").unwrap().replace_all(&*input, "");
     let input = Regex::new(r"(?mi)^X-.*\n").unwrap().replace_all(&*input, "");
-    
+
     let regex = Regex::new(r"(?mi)\s*?BEGIN:VCARD\s*?$\n([\s\S]*?)\s*?END:VCARD\s*?$\n?").unwrap();
     for cap in regex.captures_iter(&*input) {
         data.push(cap[1].to_string())
@@ -202,6 +202,20 @@ mod tests {
         assert!(matches!(result, Ok(_)));
         let vcards = result.unwrap();
         assert_eq!(vcards.len(), 1);
+    }
+
+    #[test]
+    fn vcard_x_param_single() {
+        let text = r#"
+BEGIN:VCARD
+VERSION:4.0
+FN:John Doe
+ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
+X-ABADR:us
+END:VCARD
+"#;
+        let result = parse_to_vcards(text);
+        assert_eq!(result.unwrap().len(), 1);
     }
 
     #[test]

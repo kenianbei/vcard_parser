@@ -59,6 +59,7 @@ use crate::VcardError;
 /// let data = ValueData::TextList(vec![String::from("Work"), String::from("Work")]);
 /// ```
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ValueData {
     /// Represents a boolean value, see [RFC 6350 4.4](https://datatracker.ietf.org/doc/html/rfc6350#section-4.4).
     Boolean(bool),

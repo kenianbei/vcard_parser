@@ -49,6 +49,7 @@ pub const PROPERTY_TYPE_XML: &str = "XML";
 
 /// A list of property types.
 #[derive(Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PropertyType {
     Adr,
     Anniversary,

@@ -59,6 +59,7 @@ pub const SINGLE: [PropertyType; 11] = [PropertyType::Anniversary, PropertyType:
 /// vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
 /// println!("{}", vcard.to_string());
 /// ```
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Vcard {
     properties: Vec<Property>,
 }

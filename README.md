@@ -25,6 +25,8 @@ Rust documentation is [here](https://docs.rs/vcard_parser/latest/vcard_parser). 
 
 Typically, you will use [parse_to_vcards_without_errors](https://docs.rs/vcard_parser/latest/vcard_parser/fn.parse_to_vcards_without_errors.html), unless you are sure that the input doesn't contain x-param or iana-token properties.
 
+The `serde` feature will enable serialization and deserialization for the `Vcard` type.
+
 ### Parsing vCards
 
 Reading a vcf file, updating the vCard object, and writing back to the file.

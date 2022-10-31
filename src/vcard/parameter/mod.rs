@@ -64,6 +64,7 @@ pub mod types;
 /// assert_eq!(parameter.to_string(), "TYPE=WORK");
 /// ```
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Parameter {
     parameter_type: ParameterType,
     parameter_value: Value,

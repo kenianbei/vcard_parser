@@ -17,6 +17,7 @@ pub mod kind;
 
 /// Stores value data for both properties and parameters.
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Value {
     data: ValueData,
 }

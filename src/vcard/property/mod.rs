@@ -26,6 +26,7 @@ pub mod types;
 /// assert_eq!(property.to_string(), "VERSION:4.0");
 /// ```
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Property {
     uuid: Uuid,
     property_type: PropertyType,

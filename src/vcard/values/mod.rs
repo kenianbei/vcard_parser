@@ -16,10 +16,12 @@ pub mod data;
 pub mod kind;
 
 /// Stores value data for both properties and parameters.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Value {
     data: ValueData,
 }
+
+impl Eq for Value {}
 
 /// Stores and validates both property and parameter values. Values are immutable and must
 /// be re-created in order to update them. Typically you wouldn't interact directly with value

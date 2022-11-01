@@ -58,7 +58,7 @@ use crate::VcardError;
 ///
 /// let data = ValueData::TextList(vec![String::from("Work"), String::from("Work")]);
 /// ```
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum ValueData {
     /// Represents a boolean value, see [RFC 6350 4.4](https://datatracker.ietf.org/doc/html/rfc6350#section-4.4).
     Boolean(bool),
@@ -87,6 +87,8 @@ pub enum ValueData {
     /// Represents a UTC offset, see [RFC 6350 4.7](https://datatracker.ietf.org/doc/html/rfc6350#section-4.7).
     UtcOffset(String),
 }
+
+impl Eq for ValueData {}
 
 impl TryFrom<(&PropertyType, &Option<ValueKind>, &str)> for ValueData {
     type Error = VcardError;

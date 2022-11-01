@@ -24,7 +24,7 @@ pub const REQUIRED: [PropertyType; 2] = [PropertyType::Version, PropertyType::Fn
 /// List of properties that can only be represented once in a vCard.
 pub const SINGLE: [PropertyType; 11] = [PropertyType::Anniversary, PropertyType::BDay, PropertyType::BirthPlace, PropertyType::DeathDate, PropertyType::DeathPlace, PropertyType::Gender, PropertyType::Kind, PropertyType::N, PropertyType::ProdId, PropertyType::Rev, PropertyType::Uid];
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 /// The main vCard object. It is a collection of properties that follow the RFC 6350 vCard specification.
 ///
 /// A vCard can be created individually using [Vcard::default](Vcard::default), [Vcard::try_from](Vcard::try_from<&str>()) and [Vcard::from](Vcard::from) or as an array of vCard objects

@@ -35,7 +35,9 @@ pub struct Property {
 
 impl PartialEq for Property {
     fn eq(&self, other: &Self) -> bool {
-        self.property_type == other.property_type && self.property_value == other.property_value && self.property_parameters == other.property_parameters
+        self.property_type == other.property_type
+            && self.property_value == other.property_value
+            && self.property_parameters == other.property_parameters
     }
 }
 

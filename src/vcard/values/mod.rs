@@ -16,7 +16,7 @@ pub mod data;
 pub mod kind;
 
 /// Stores value data for both properties and parameters.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Value {
     data: ValueData,
 }

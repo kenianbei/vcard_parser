@@ -20,7 +20,7 @@ pub const PARAMETER_TYPE_TZ: &str = "TZ";
 pub const PARAMETER_TYPE_VALUE: &str = "VALUE";
 
 /// A list of parameter types. See [RFC 6350 Section 5](https://datatracker.ietf.org/doc/html/rfc6350#section-5).
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ParameterType {
     AltId,
     Any,

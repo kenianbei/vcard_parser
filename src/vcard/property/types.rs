@@ -48,7 +48,7 @@ pub const PROPERTY_TYPE_VERSION: &str = "VERSION";
 pub const PROPERTY_TYPE_XML: &str = "XML";
 
 /// A list of property types.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PropertyType {
     Adr,
     Anniversary,

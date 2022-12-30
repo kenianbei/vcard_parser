@@ -63,7 +63,7 @@ pub mod types;
 /// let parameter = Parameter::try_from((&PropertyType::Tel, "TYPE=WORK")).expect("Unable to parse parameter.");
 /// assert_eq!(parameter.to_string(), "TYPE=WORK");
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Parameter {
     parameter_type: ParameterType,
     parameter_value: Value,

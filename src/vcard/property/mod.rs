@@ -25,7 +25,7 @@ pub mod types;
 /// let property = Property::from(PropertyType::Version);
 /// assert_eq!(property.to_string(), "VERSION:4.0");
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Property {
     uuid: Uuid,
     property_type: PropertyType,

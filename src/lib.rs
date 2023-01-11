@@ -165,6 +165,7 @@ pub fn parse_to_vcards_without_errors(input: &str) -> Vec<Vcard> {
 #[cfg(test)]
 mod tests {
     use crate::{parse_to_vcards, parse_to_vcards_without_errors, VcardError};
+    use crate::vcard::property::types::PropertyType;
 
     #[test]
     fn vcard_no_version() {
@@ -364,6 +365,30 @@ EMAIL;type=INTERNET;type=WORK:acme@example.com
 TEL;type=CELL;type=VOICE;type=pref:+1 (555) 555-5555
 TEL;type=IPHONE;type=CELL;type=VOICE:+1 (555) 555-5550
 ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;
+ Washington;DC;20500;
+ United States
+ADR;type=WORK:;;First St SE;Washington;DC;20004;United States
+NOTE:Lorem ipsum dolor sit amet\, consectetur adipiscing elit\, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam\, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident\, sunt in culpa qui officia deserunt mollit anim id est laborum.
+BDAY:2000-01-01
+END:VCARD
+"#;
+        let result = parse_to_vcards(text);
+        assert_eq!(result.unwrap().len(), 1);
+    }
+
+    #[test]
+    fn sample_with_compound() {
+        let text = r#"
+BEGIN:VCARD
+VERSION:4.0
+N:Doe;John;;;
+FN:John Doe
+ORG:ACME Inc.;
+EMAIL;type="INTERNET,HOME,pref":user@example.com
+EMAIL;type="INTERNET,WORK":acme@example.com
+TEL;type="CELL,VOICE,pref":+1 (555) 555-5555
+TEL;type="IPHONE,CELL,VOICE":+1 (555) 555-5550
+ADR;type="HOME,pref":;;1600 Pennsylvania Avenue NW;
  Washington;DC;20500;
  United States
 ADR;type=WORK:;;First St SE;Washington;DC;20004;United States

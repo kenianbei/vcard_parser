@@ -84,7 +84,24 @@ impl Parameter {
 
         if let Some(str) = option {
             for str in str.split(';') {
-                parameters.push(Parameter::try_from((property_type, str))?)
+                // rewrite compound parameter as individual parameters
+                if str.contains("\"") {
+                    // get parameter type
+                    let equal = str.find("=").unwrap();
+                    let parameter_type = &str[..equal];
+
+                    // get parameter values
+                    let end = str.chars().count();
+                    let parameter_slice = &str[equal+2..end-1]; // ignore the quotation mark
+                    for parameter in parameter_slice.split(",") {
+                        let str = format!("{}={}", parameter_type,parameter);
+                        parameters.push(Parameter::try_from((property_type, &*str))?)
+                    }
+
+                }
+                else {
+                    parameters.push(Parameter::try_from((property_type, str))?)
+                }
             }
         }
 

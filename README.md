@@ -13,12 +13,12 @@ Add the library to the dependencies section of your cargo.toml file.
 
 ```toml
 [dependencies]
-vcard_parser = "0.2.0"
+vcard_parser = "0.2.1"
 ```
 
 ## Usage
 
-Rust documentation is [here](https://docs.rs/vcard_parser/latest/vcard_parser). 
+Rust documentation is [here](https://docs.rs/vcard_parser/latest/vcard_parser).
 
 ### Basic Example
 

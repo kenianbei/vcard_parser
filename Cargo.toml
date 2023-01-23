@@ -1,6 +1,6 @@
 [package]
 name = "vcard_parser"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Norman Kerr"]
 edition = "2021"
 description = "Parses and validates vCard data according to RFC 6350 specification."

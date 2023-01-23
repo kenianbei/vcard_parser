@@ -1,0 +1,33 @@
+BEGIN:VCARD
+VERSION:4.0
+N:Doe;John;;;
+FN:John Doe
+ORG:ACME Inc.;
+EMAIL;type=INTERNET;type=HOME;type=pref:user@example.com
+EMAIL;type=INTERNET;type=WORK:acme@example.com
+TEL;type=CELL;type=VOICE;type=pref:+1 (555) 555-5555
+TEL;type=IPHONE;type=CELL;type=VOICE:+1 (555) 555-5550
+ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
+ADR;type=WORK:;;First St SE;Washington;DC;20004;United States
+NOTE:Lorem ipsum dolor sit amet\, consectetur adipiscing elit\, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam\, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident\, sunt in culpa qui officia deserunt mollit anim id est laborum.
+BDAY:2000-01-01
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+PRODID:-//Apple Inc.//macOS 12.6//EN
+N:Doe;Jane;;;
+FN:ACME Inc.
+ORG:ACME Inc.;
+EMAIL;type=INTERNET;type=HOME;type=pref:user@example.com
+EMAIL;type=INTERNET;type=WORK:acme@example.com
+TEL;type=IPHONE;type=CELL;type=VOICE;type=pref:+1 (555) 555-5550
+TEL;type=CELL;type=VOICE:+1 (555) 555-5555
+ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
+ADR;type=WORK:;;First St SE;Washington;DC;20004;United States
+NOTE:Lorem ipsum dolor sit amet\, consectetur adipiscing elit\, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam\, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident\, sunt in culpa qui officia deserunt mollit anim id est laborum.
+item1.URL;type=pref:https://example.com
+item1.X-ABLabel:_$!<HomePage>!$_
+BDAY:2000-01-01
+IMPP;X-SERVICE-TYPE=Facebook;type=HOME;type=pref:xmpp:johndoe
+X-ABShowAs:COMPANY
+END:VCARD

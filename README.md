@@ -1,6 +1,6 @@
 # vCard Parser
 
-Parses and validates vCard data according to RFC 6350 specification.
+Parses and validates vCard data according to [RFC 6350](https://datatracker.ietf.org/doc/html/rfc6350) specification.
 
 ![rust](https://github.com/kenianbei/vcard_parser/actions/workflows/rust.yml/badge.svg)
 [![crates](https://img.shields.io/crates/v/vcard_parser.svg)](https://crates.io/crates/vcard_parser)
@@ -18,74 +18,34 @@ vcard_parser = "0.1.2"
 
 ## Usage
 
-Rust documentation is [here](https://docs.rs/vcard_parser/latest/vcard_parser). There are two main functions for parsing vCards from a file or input string:
+Rust documentation is [here](https://docs.rs/vcard_parser/latest/vcard_parser). 
 
-* [parse_to_vcards](https://docs.rs/vcard_parser/latest/vcard_parser/fn.parse_to_vcards.html): Parses vCards from a string, failing on any error.
-* [parse_to_vcards_without_errors](https://docs.rs/vcard_parser/latest/vcard_parser/fn.parse_to_vcards_without_errors.html): Parses vCards from a string, ignoring properties that throw an error.
+### Basic Example
 
-Typically, you will use [parse_to_vcards_without_errors](https://docs.rs/vcard_parser/latest/vcard_parser/fn.parse_to_vcards_without_errors.html), unless you are sure that the input doesn't contain x-param or iana-token properties.
-
-### Parsing vCards
-
-Reading a vcf file, updating the vCard object, and writing back to the file.
+Read a vcf file, update the vCard object, and write back to file.
 
 ```rust
-use std::fs;
-use std::fs::read_to_string;
-use vcard_parser::parse_to_vcards_without_errors;
-use vcard_parser::vcard::property::types::PropertyType;
+use std::fs::{read_to_string, write};
+use vcard_parser::parse_vcards;
+use vcard_parser::traits::HasValue;
+use vcard_parser::vcard::value::Value;
+use vcard_parser::vcard::value::value_text::ValueTextData;
 
 fn main () {
-    if let Ok(string) = read_to_string("contacts.vcf") {
-        let mut vcards = parse_to_vcards_without_errors(string.as_str());
+    let input = read_to_string("contacts.vcf").unwrap_or(String::from("BEGIN:VCARD\nVERSION:4.0\nFN:\nEND:VCARD\n"));
+    let mut vcards = parse_vcards(input.as_str()).expect("Unable to parse string.");
 
-        let mut vcard = vcards.first().unwrap().clone();
-        let property = vcard.get_property_by_type(&PropertyType::Fn).unwrap();
+    let vcard = vcards.first_mut().unwrap();
+    let mut property = vcard.get_property_by_name("FN").unwrap();
 
-        vcard.update_property(property.get_uuid(), "FN:John Doe").expect("Unable to update property.");
-        vcards[0] = vcard;
+    property.set_value(Value::from(ValueTextData::from("John Doe"))).unwrap();
+    vcard.set_property(&property).expect("Unable to update property.");
 
-        let mut data = String::new();
-        for vcard in vcards {
-            data.push_str(vcard.to_string().as_str())
-        }
-        fs::write("contacts.vcf", data).expect("Unable to write file.");
+    let mut data = String::new();
+    for vcard in vcards {
+        data.push_str(vcard.export().as_str())
     }
-}
-```
 
-### Creating a new vCard
-
-```rust
-use vcard_parser::vcard::Vcard;
-
-fn main () {
-    let mut vcard = Vcard::default();
-    vcard.add_property("NICKNAME:Johnny").unwrap();
-    println!("{}", vcard.to_string());
-}
-```
-
-### Parsing a single vCard without error checking
-
-```rust
-use vcard_parser::vcard::Vcard;
-
-fn main () {
-    let mut vcard = Vcard::from("VERSION:4.0\nFN:John Doe\n");
-    vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-    println!("{}", vcard.to_string());
-}
-```
-
-### Parsing a single vCard with error checking
-
-```rust
-use vcard_parser::vcard::Vcard;
-
-fn main () {
-    let mut vcard = Vcard::try_from("VERSION:4.0\nFN:John Doe\n").expect("Unable to parse input.");
-    vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-    println!("{}", vcard.to_string());
+    write("contacts.vcf", data).expect("Unable to write file.");
 }
 ```

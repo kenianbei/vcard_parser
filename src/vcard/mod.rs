@@ -1,319 +1,363 @@
+//! The vcard module represents data that has been parsed as per the [RFC 6350](https://datatracker.ietf.org/doc/html/rfc6350) vCard specification.
+//!
+//! The main [`Vcard`] object contains an optional client id and an array of [properties](property).
+//! Each property holds an optional group name, an array of [parameters](parameter), and a property
+//! [value](value).
+//!
+//! A vCard can be created individually using [`Vcard::new`] or [`Vcard::try_from`].
+//!
+//! # Examples
+//!
+//! ## Creating a new vCard
+//! ```
+//! use vcard_parser::vcard::Vcard;
+//!
+//! let mut vcard = Vcard::new("John Doe");
+//! ```
+//!
+//! ## Parsing a single vCard.
+//! ```
+//! use vcard_parser::vcard::Vcard;
+//!
+//! let text = "BEGIN:VCARD\nVERSION:4.0\nFN:John Doe\nEND:VCARD\n";
+//!
+//! // Create a basic vCard without attached client device uuid.
+//! let mut vcard = Vcard::try_from(text).expect("Unable to parse input.");
+//!
+//! // Create a basic vCard with attached client device uuid.
+//! let mut vcard = Vcard::try_from(("urn:uuid:some-uuid", text)).expect("Unable to parse input.");
+//! ```
+
 use std::fmt::{Display, Formatter};
 
-use uuid::Uuid;
+use crate::constants::{ParameterName, PropertyName};
+use crate::parse::VcardData;
+use crate::vcard::parameter::Parameter;
+use crate::vcard::property::property_fn::PropertyFnData;
+use crate::vcard::value::value_clientpidmap::ValueClientPidMapData;
+use crate::vcard::value::Value::ValueClientPidMap;
+use crate::Property::PropertyFn;
+use crate::{parse, HasCardinality, HasName, HasParameters, HasValue, Property, VcardError};
 
-use crate::vcard::property::types::{PropertyType, PROPERTY_TYPE_VERSION};
-use crate::vcard::property::Property;
-use crate::VcardError;
-
-/// Stores parameter data such as type and value.
 pub mod parameter;
-
-/// Property specific handlers for each property type (e.g. Address, Birthday, etc...).
-mod properties;
-
-/// Store property data, including both parameters and property values.
 pub mod property;
+pub mod value;
 
-/// Store both property value data and parameter value data.
-pub mod values;
-
-/// List of required properties.
-pub const REQUIRED: [PropertyType; 2] = [PropertyType::Version, PropertyType::Fn];
-
-/// List of properties that can only be represented once in a vCard.
-pub const SINGLE: [PropertyType; 11] = [PropertyType::Anniversary, PropertyType::BDay, PropertyType::BirthPlace, PropertyType::DeathDate, PropertyType::DeathPlace, PropertyType::Gender, PropertyType::Kind, PropertyType::N, PropertyType::ProdId, PropertyType::Rev, PropertyType::Uid];
-
-#[derive(Clone)]
-/// The main vCard object. It is a collection of properties that follow the RFC 6350 vCard specification.
-///
-/// A vCard can be created individually using [Vcard::default](Vcard::default), [Vcard::try_from](Vcard::try_from<&str>()) and [Vcard::from](Vcard::from) or as an array of vCard objects
-/// using the main [parse_to_vcards](super::parse_to_vcards) and [parse_to_vcards_without_errors](super::parse_to_vcards_without_errors) functions.
-///
-/// # Examples
-///
-/// ## Creating a new vCard
-/// ```
-/// use vcard_parser::vcard::Vcard;
-///
-/// let mut vcard = Vcard::default();
-/// vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-/// println!("{}", vcard.to_string());
-/// ```
-///
-/// ## Parsing a single vCard with error checks.
-/// ```
-/// use vcard_parser::vcard::Vcard;
-///
-/// let mut vcard = Vcard::try_from("VERSION:4.0\nFN:John Doe\n").expect("Unable to parse input.");
-/// vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-/// println!("{}", vcard.to_string());
-/// ```
-///
-/// ## Parsing a single vCard without error checks.
-/// ```
-/// use vcard_parser::vcard::Vcard;
-///
-/// let mut vcard = Vcard::from("VERSION:4.0\nFN:John Doe\n");
-/// vcard.validate_vcard().expect("Invalid vCard.");
-/// vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-/// println!("{}", vcard.to_string());
-/// ```
+#[derive(Clone, Debug)]
 pub struct Vcard {
+    client: Option<String>,
     properties: Vec<Property>,
 }
 
 impl Vcard {
-    /// Create a new vCard from a string, ignoring all errors.
-    /// After creation of the vCard with this method, it's a good idea to validate the vCard.
+    /// Create a new vCard from the FN property.
     ///
     /// # Examples
     /// ```
     /// use vcard_parser::vcard::Vcard;
     ///
-    /// let vcard = Vcard::from("VERSION:4.0\nFN:John Doe");
-    /// vcard.validate_vcard().expect("Invalid vCard.");
+    /// let mut vcard = Vcard::new("John Doe");
+    /// assert_eq!(vcard.get_properties().len(), 1);
     /// ```
-    pub fn from(str: &str) -> Self {
-        let mut properties = Vec::new();
+    pub fn new(str: &str) -> Self {
+        Vcard {
+            client: None,
+            properties: Vec::from([PropertyFn(
+                PropertyFnData::from(str),
+            )]),
+        }
+    }
 
-        for str in str.lines() {
-            if let Ok(property) = Property::try_from((str, None)) {
-                properties.push(property);
+    /// Export a vcard without any clientpidmap or pid information.
+    ///
+    /// # Examples
+    /// ```
+    /// use vcard_parser::vcard::Vcard;
+    ///
+    /// let text = "BEGIN:VCARD\nVERSION:4.0\nFN:John Doe\nEND:VCARD\n";
+    ///
+    /// let mut vcard = Vcard::try_from(text).expect("Unable to parse vCard.");
+    /// assert_eq!(vcard.export(), text);
+    /// ```
+    pub fn export(&self) -> String {
+        let mut string = String::new();
+
+        string.push_str("BEGIN:VCARD\n");
+        string.push_str("VERSION:4.0\n");
+
+        for property in self.get_properties().iter() {
+            if property.name() != PropertyName::CLIENTPIDMAP {
+                string.push_str(&property.export())
             }
         }
 
-        Vcard { properties }
+        string.push_str("END:VCARD\n");
+
+        string
     }
 
-    /// Create a new vCard from a fullname.
+    /// Get a single cloned property from the vCard.
+    ///
+    /// # Examples
+    /// ```
+    /// use vcard_parser::vcard::property::Property;
+    /// use vcard_parser::vcard::Vcard;
+    ///
+    /// let mut vcard = Vcard::new("John Doe");
+    /// let property = Property::try_from("NICKNAME:Johnny\n").expect("Unable to parse property string.");
+    /// let property = vcard.set_property(&property).expect("Unable to add property.");
+    /// let property = vcard.get_property(&property);
+    /// assert!(property.is_some());
+    /// ```
+    pub fn get_property(&mut self, property: &Property) -> Option<Property> {
+        if let Some(i) = self.get_property_index(property) {
+            return self.properties.get(i).cloned();
+        }
+        None
+    }
+
+    /// Get a reference to a single property from the vCard.
+    ///
+    /// # Examples
+    /// ```
+    /// use vcard_parser::vcard::property::Property;
+    /// use vcard_parser::vcard::Vcard;
+    ///
+    /// let mut vcard = Vcard::new("John Doe");
+    /// let property = Property::try_from("NICKNAME:Johnny\n").expect("Unable to parse property string.");
+    /// let property = vcard.set_property(&property).expect("Unable to add property.");
+    /// let property = vcard.get_property(&property);
+    /// assert!(property.is_some());
+    /// ```
+    pub fn get_property_ref(&mut self, property: &Property) -> Option<&Property> {
+        if let Some(i) = self.get_property_index(property) {
+            return self.properties.get(i);
+        }
+        None
+    }
+
+    /// Get a mutable reference to a single property from the vCard.
+    ///
+    /// # Examples
+    /// ```
+    /// use vcard_parser::vcard::property::Property;
+    /// use vcard_parser::vcard::Vcard;
+    ///
+    /// let mut vcard = Vcard::new("John Doe");
+    /// let property = Property::try_from("NICKNAME:Johnny\n").expect("Unable to parse property string.");
+    /// let property = vcard.set_property(&property).expect("Unable to add property.");
+    /// let property = vcard.get_property(&property);
+    /// assert!(property.is_some());
+    /// ```
+    pub fn get_property_mut(&mut self, property: &Property) -> Option<&mut Property> {
+        if let Some(i) = self.get_property_index(property) {
+            return self.properties.get_mut(i);
+        }
+        None
+    }
+
+    /// Get cloned copy of a single property by property name.
+    ///
+    /// This will only match properties that have a single cardinality.
+    ///
+    /// # Examples
+    /// ```
+    /// use vcard_parser::vcard::property::Property;
+    /// use vcard_parser::vcard::Vcard;
+    ///
+    /// let mut vcard = Vcard::new("John Doe");
+    /// let property = Property::try_from("BDAY:20000101\n").expect("Unable to parse property string.");
+    /// let property = vcard.set_property(&property).expect("Unable to add property.");
+    /// let property = vcard.get_property_by_name("BDAY");
+    /// assert!(property.is_some());
+    /// ```
+    pub fn get_property_by_name(&mut self, str: &str) -> Option<Property> {
+        if let Some(property) = self.properties.iter_mut().find(|p| p.name() == str && p.is_single()) {
+            return Some(property.clone());
+        }
+
+        None
+    }
+
+    /// Get a cloned copy of properties filtered by name from the vCard.
+    ///
+    /// This will only match properties that have multiple cardinality.
+    ///
+    /// # Examples
+    /// ```
+    /// use vcard_parser::vcard::property::Property;
+    /// use vcard_parser::vcard::Vcard;
+    ///
+    /// let mut vcard = Vcard::new("John Doe");
+    ///
+    /// let property = Property::try_from("NICKNAME:Johnny\n").expect("Unable to parse property string.");
+    /// let property = vcard.set_property(&property).expect("Unable to add property.");
+    /// let properties = vcard.get_properties_by_name("NICKNAME");
+    /// assert_eq!(properties.len(), 1);
+    ///
+    /// let property = Property::try_from("NICKNAME:Jonathon\n").expect("Unable to parse property string.");
+    /// let property = vcard.set_property(&property).expect("Unable to add property.");
+    /// let properties = vcard.get_properties_by_name("NICKNAME");
+    /// assert_eq!(properties.len(), 2);
+    /// ```
+    pub fn get_properties_by_name(&self, str: &str) -> Vec<Property> {
+        self.get_properties().iter().cloned().filter(|p| p.name() == str && p.is_multiple()).collect()
+    }
+
+    /// Get a cloned copy of all properties from the vCard.
     ///
     /// # Examples
     /// ```
     /// use vcard_parser::vcard::Vcard;
     ///
-    /// let vcard = Vcard::from_fullname("John Doe").expect("Unable to create vCard.");
+    /// let mut vcard = Vcard::try_from("BEGIN:VCARD\nVERSION:4.0\nFN:John Doe\nEND:VCARD\n").expect("Unable to parse vCard.");
+    /// let properties = vcard.get_properties();
+    /// assert_eq!(properties.len(), 1);
     /// ```
-    pub fn from_fullname(str: &str) -> Result<Vcard, VcardError> {
-        let mut vcard = Vcard::default();
-
-        if let Some(property) = vcard.get_property_by_type(&PropertyType::Fn) {
-            vcard.update_property(property.get_uuid(), format!("FN:{}", str).as_str())?;
-        }
-
-        Ok(vcard)
-    }
-
-    /// Add a property to the vCard.
-    ///
-    /// # Examples
-    /// ```
-    /// use vcard_parser::vcard::Vcard;
-    ///
-    /// let mut vcard = Vcard::default();
-    /// vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-    /// ```
-    pub fn add_property(&mut self, str: &str) -> Result<Uuid, VcardError> {
-        let property = Property::try_from((str, None))?;
-        let property_type = property.get_type();
-
-        if self.get_property_by_type(property_type).is_some() {
-            if SINGLE.iter().any(|p| p == property_type) {
-                return Err(VcardError::PropertyExists(property_type.to_string()));
-            }
-            if REQUIRED.iter().any(|p| p == property_type) {
-                return Err(VcardError::PropertyExists(property_type.to_string()));
-            }
-        }
-
-        self.properties.push(property.clone());
-
-        Ok(property.get_uuid())
-    }
-
-    /// Get a property from the vCard.
-    ///
-    /// # Examples
-    /// ```
-    /// use vcard_parser::vcard::Vcard;
-    ///
-    /// let mut vcard = Vcard::default();
-    /// let uuid = vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-    /// let property = vcard.get_property(uuid).unwrap();
-    /// ```
-    pub fn get_property(&self, uuid: Uuid) -> Option<&Property> {
-        match self.get_property_index(uuid) {
-            None => None,
-            Some(index) => self.properties.get(index),
-        }
-    }
-
-    /// Update a property in the vCard.
-    ///
-    /// # Examples
-    /// ```
-    /// use vcard_parser::vcard::Vcard;
-    ///
-    /// let mut vcard = Vcard::default();
-    /// let uuid = vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-    /// vcard.update_property(uuid, "NICKNAME:Johnny Five").expect("Unable to update property.");
-    ///
-    /// ```
-    pub fn update_property(&mut self, uuid: Uuid, str: &str) -> Result<bool, VcardError> {
-        if let Some(index) = self.get_property_index(uuid) {
-            self.properties[index] = Property::try_from((str, Some(uuid)))?;
-            self.validate_vcard()?;
-            return Ok(true);
-        }
-        Ok(false)
+    pub fn get_properties(&self) -> Vec<Property> {
+        self.properties.clone()
     }
 
     /// Remove a property from the vCard.
     ///
     /// # Examples
     /// ```
+    /// use vcard_parser::vcard::property::Property;
     /// use vcard_parser::vcard::Vcard;
     ///
-    /// let mut vcard = Vcard::default();
-    /// let uuid = vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-    /// vcard.remove_property(uuid).expect("Unable to remove property.");
+    /// let mut vcard = Vcard::new("John Doe");
+    /// let property = Property::try_from("NICKNAME:Johnny\n").expect("Unable to parse property string.");
+    /// let property = vcard.set_property(&property).expect("Unable to add property.");
+    /// if vcard.remove_property(&property).expect("Unable to remove property.") {
+    ///     assert!(vcard.get_property(&property).is_none());
+    /// }
     /// ```
-    pub fn remove_property(&mut self, uuid: Uuid) -> Result<bool, VcardError> {
-        if let Some(property) = self.get_property(uuid) {
-            if REQUIRED.iter().any(|p| p == property.get_type()) {
-                return Err(VcardError::PropertyRequired(property.get_type().to_string()));
-            }
-            if let Some(index) = self.get_property_index(uuid) {
-                self.properties.remove(index);
-                return Ok(true);
-            }
+    pub fn remove_property(&mut self, property: &Property) -> Result<bool, VcardError> {
+        if property.name() == PropertyName::FN {
+            return Err(VcardError::PropertyFnRequired);
         }
+
+        if let Some(index) = self.get_property_index(property) {
+            self.properties.remove(index);
+            return Ok(true);
+        }
+
         Ok(false)
     }
 
-    /// Get a property by type from the vCard.
+    /// Sets a property. If the property matches an existing property, the existing property will be replaced.
+    /// If there is no match, a new property will be added.
+    ///
+    /// Returns a clone of the property which will include pid information for later matching.
     ///
     /// # Examples
     /// ```
-    /// use vcard_parser::vcard::property::types::PropertyType;
+    /// use vcard_parser::vcard::property::Property;
     /// use vcard_parser::vcard::Vcard;
     ///
-    /// let mut vcard = Vcard::default();
-    /// vcard.add_property("BDAY:20000101").expect("Unable to add property.");
-    /// let property = vcard.get_property_by_type(&PropertyType::BDay).unwrap();
+    /// let mut vcard = Vcard::new("John Doe");
+    /// let property = Property::try_from("NICKNAME:Johnny\n").expect("Unable to parse property string.");
+    /// let property = vcard.set_property(&property).expect("Unable to add property.");
+    /// assert!(vcard.get_property(&property).is_some());
     /// ```
-    pub fn get_property_by_type(&self, property_type: &PropertyType) -> Option<&Property> {
-        if !SINGLE.iter().any(|p| p == property_type) && !REQUIRED.iter().any(|p| p == property_type) {
-            return None;
+    pub fn set_property(&mut self, property: &Property) -> Result<Property, VcardError> {
+        let mut property = property.clone();
+
+        // Add pid information to the property if it doesn't match an existing property.
+        if property.is_multiple() && property.name() != PropertyName::CLIENTPIDMAP && property.allowed_parameters().contains(&ParameterName::PID) {
+            if None == self.get_property_index(&property) {
+                let count = self.get_properties_by_name(property.name()).len();
+                let string = {
+                    if let Some(clientpidmap) = self.get_clientpidmap() {
+                        format!(";PID={}.{}", count + 1, clientpidmap.id)
+                    } else {
+                        format!(";PID={}", count + 1)
+                    }
+                };
+                property.add_parameter(Parameter::try_from(string.as_str())?)?;
+            }
         }
 
-        if let Some(property) = self.properties.iter().find(|p| p.get_type() == property_type) {
-            return Some(property);
+        // Update or add property depending on match.
+        if let Some(i) = self.get_property_index(&property) {
+            self.properties[i] = property.clone();
+            Ok(property)
+        } else {
+            self.properties.push(property.clone());
+            Ok(property)
         }
+    }
 
+    /// Helper function for matching properties and returning their index in the properties array.
+    fn get_property_index(&self, property: &Property) -> Option<usize> {
+        for (i, other) in self.properties.iter().enumerate() {
+            if property == other {
+                return Some(i);
+            }
+        }
         None
     }
 
-    /// Get the index of a property by uuid.
-    ///
-    /// # Examples
-    /// ```
-    /// use vcard_parser::vcard::Vcard;
-    ///
-    /// let mut vcard = Vcard::default();
-    /// let uuid = vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-    /// let index = vcard.get_property_index(uuid).unwrap();
-    /// ```
-    pub fn get_property_index(&self, uuid: Uuid) -> Option<usize> {
-        self.properties.iter().position(|p| p.get_uuid() == uuid)
-    }
-
-    /// Get all properties from the vCard.
-    ///
-    /// # Examples
-    /// ```
-    /// use vcard_parser::vcard::Vcard;
-    ///
-    /// let mut vcard = Vcard::default();
-    /// let properties = vcard.get_properties();
-    /// ```
-    pub fn get_properties(&self) -> &Vec<Property> {
-        &self.properties
-    }
-
-    /// Get properties by type from the vCard.
-    ///
-    /// # Examples
-    /// ```
-    /// use vcard_parser::vcard::property::types::PropertyType;
-    /// use vcard_parser::vcard::Vcard;
-    ///
-    /// let mut vcard = Vcard::default();
-    /// vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-    /// let property = vcard.get_properties_by_type(&PropertyType::NickName);
-    /// ```
-    pub fn get_properties_by_type(&self, property_type: &PropertyType) -> Vec<Property> {
-        self.get_properties().iter().cloned().filter(|property| property.get_type() == property_type).collect()
-    }
-
-    /// Validate that the vCard has all required properties and that the version is valid.
-    ///
-    /// # Examples
-    /// ```
-    /// use vcard_parser::vcard::Vcard;
-    ///
-    /// let mut vcard = Vcard::default();
-    /// vcard.validate_vcard().expect("Invalid vCard.");
-    /// ```
-    pub fn validate_vcard(&self) -> Result<(), VcardError> {
-        self.validate_vcard_required_properties()?;
-        self.validate_vcard_version()?;
-        Ok(())
-    }
-
-    /// Validates a vCard has all required properties.
-    fn validate_vcard_required_properties(&self) -> Result<(), VcardError> {
-        let mut properties = self.get_properties().iter();
-        for property_type in REQUIRED {
-            if !properties.any(|property| property.get_type() == &property_type) {
-                return Err(VcardError::PropertyMissing(property_type.to_string()));
+    /// Get the clientpidmap matching the client managing this vCard.
+    fn get_clientpidmap(&self) -> Option<ValueClientPidMapData> {
+        if let Some(client) = &self.client {
+            for property in self.get_properties_by_name(PropertyName::CLIENTPIDMAP) {
+                if let ValueClientPidMap(clientpidmap) = property.get_value() {
+                    if clientpidmap.client.as_str() == client {
+                        return Some(clientpidmap.clone());
+                    }
+                }
             }
         }
-        Ok(())
-    }
-
-    /// Validates a vCard is version 4.0.
-    fn validate_vcard_version(&self) -> Result<(), VcardError> {
-        if let Some(version) = self.get_property_by_type(&PropertyType::Version) {
-            let value = version.get_value().to_string();
-            if value == "4.0" {
-                return Ok(());
-            }
-            return Err(VcardError::VersionInvalid(value));
-        }
-        Err(VcardError::PropertyMissing(PROPERTY_TYPE_VERSION.to_string()))
-    }
-}
-
-impl Default for Vcard {
-    fn default() -> Self {
-        Vcard {
-            properties: Vec::from([Property::from(PropertyType::Version), Property::from(PropertyType::Fn), Property::from(PropertyType::Uid)]),
-        }
+        None
     }
 }
 
 impl TryFrom<&str> for Vcard {
     type Error = VcardError;
     fn try_from(str: &str) -> Result<Self, Self::Error> {
+        let (_, properties) = parse::vcard::vcard(str.as_bytes())?;
+        Self::try_from((None, properties))
+    }
+}
+
+impl TryFrom<(&str, &str)> for Vcard {
+    type Error = VcardError;
+    fn try_from((client, str): (&str, &str)) -> Result<Self, Self::Error> {
+        let (_, properties) = parse::vcard::vcard(str.as_bytes())?;
+        Self::try_from((Some(client.to_string()), properties))
+    }
+}
+
+impl<'a> TryFrom<(Option<String>, VcardData<'a>)> for Vcard {
+    type Error = VcardError;
+    fn try_from((client, data): (Option<String>, VcardData<'a>)) -> Result<Self, Self::Error> {
         let mut properties = Vec::new();
 
-        for str in str.lines() {
-            properties.push(Property::try_from((str, None))?);
+        for datum in data {
+            properties.push(Property::create_from_data(datum)?)
         }
 
-        let vcard = Vcard { properties };
-        vcard.validate_vcard()?;
+        Self::try_from((client, properties))
+    }
+}
+
+impl TryFrom<(Option<String>, Vec<Property>)> for Vcard {
+    type Error = VcardError;
+    fn try_from((client, properties): (Option<String>, Vec<Property>)) -> Result<Self, Self::Error> {
+        let mut vcard = Self { client, properties: Vec::new() };
+
+        if let Some(client) = &vcard.client {
+            vcard.set_property(&Property::create_from_str(format!("CLIENTPIDMAP:1;{}\n", client).as_str())?)?;
+        }
+
+        for property in properties {
+            vcard.set_property(&property)?;
+        }
+
+        if vcard.get_property_by_name(PropertyName::FN).is_none() {
+            return Err(VcardError::PropertyFnMissing);
+        }
 
         Ok(vcard)
     }
@@ -321,55 +365,59 @@ impl TryFrom<&str> for Vcard {
 
 impl Display for Vcard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "BEGIN:VCARD")?;
+        write!(f, "BEGIN:VCARD\n")?;
+        write!(f, "VERSION:4.0\n")?;
         for property in self.get_properties().iter() {
-            writeln!(f, "{}", property)?;
+            write!(f, "{}", property)?;
         }
-        writeln!(f, "END:VCARD")?;
+        write!(f, "END:VCARD\n")?;
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_to_strings, Vcard};
+    use crate::constants::ValueName;
+    use crate::vcard::value::Value;
+    use crate::{HasValue, Property, Vcard};
 
     #[test]
-    pub fn vcard_import_export() {
-        let text = r#"BEGIN:VCARD
-VERSION:4.0
-N:Doe;John;;;
-FN:John Doe
-ORG:ACME Inc.;
-EMAIL;TYPE=INTERNET;TYPE=HOME;TYPE=pref:user@example.com
-EMAIL;TYPE=INTERNET;TYPE=WORK:acme@example.com
-TEL;TYPE=CELL;TYPE=VOICE;TYPE=pref:+1(555)555-5555
-TEL;TYPE=IPHONE;TYPE=CELL;TYPE=VOICE:+1(555)555-5550
-ADR;TYPE=HOME;TYPE=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
-ADR;TYPE=WORK:;;First St SE;Washington;DC;20004;United States
-NOTE:Lorem ipsum dolor sit amet\, consectetur adipiscing elit\, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam\, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident\, sunt in culpa qui officia deserunt mollit anim id est laborum.
-BDAY;VALUE=DATE-AND-OR-TIME:2000-01-01
-END:VCARD
-"#;
-        let parsed_input = parse_to_strings(text).first().cloned().unwrap();
-        let vcard = Vcard::try_from(parsed_input.as_str()).unwrap();
-        assert_eq!(text, vcard.to_string());
+    pub fn vcard_new() {
+        assert_eq!(Vcard::new("John Doe").to_string(), "BEGIN:VCARD\nVERSION:4.0\nFN:John Doe\nEND:VCARD\n");
     }
 
     #[test]
-    pub fn vcard_crud() {
-        let mut vcard = Vcard::default();
+    pub fn vcard_export() {
+        assert_eq!(Vcard::new("John Doe").export(), "BEGIN:VCARD\nVERSION:4.0\nFN:John Doe\nEND:VCARD\n");
+    }
 
-        let a = "TEL:+1 (555) 555-5555";
-        let b = "TEL:+1 (555) 555-5556";
+    #[test]
+    pub fn vcard_property_operations() {
+        let mut vcard = Vcard::new("John Doe");
 
-        let uuid = vcard.add_property(a).unwrap();
-        assert_eq!(vcard.get_property(uuid).unwrap().get_value().to_string().as_str(), "+1(555)555-5555");
+        // Test getting properties.
+        assert_eq!(vcard.get_properties().len(), 1);
+        assert_eq!(vcard.get_properties_by_name("FN").len(), 0);
 
-        vcard.update_property(uuid, b).unwrap();
-        assert_eq!(vcard.get_property(uuid).unwrap().get_value().to_string().as_str(), "+1(555)555-5556");
+        // Test setting single property via set property.
+        let n_property = vcard.set_property(&Property::try_from("N:Doe;John;;;\n").unwrap()).unwrap();
+        assert_eq!(vcard.get_property_by_name("N").unwrap().to_string(), "N:Doe;John;;;\n");
 
-        vcard.remove_property(uuid).unwrap();
-        assert!(matches!(vcard.get_property(uuid), None));
+        // Test directly setting single property value on mut ref.
+        let n_property = vcard.get_property_mut(&n_property).unwrap();
+        n_property.set_value(Value::try_from((ValueName::LISTCOMPONENT, "Doe;Jonathan;;;")).unwrap()).unwrap();
+        assert_eq!(vcard.get_property_by_name("N").unwrap().to_string(), "N:Doe;Jonathan;;;\n");
+
+        // Test setting multiple property via set property.
+        let nickname_property = vcard.set_property(&Property::try_from("NICKNAME:Johnny\n").unwrap()).unwrap();
+        assert_eq!(vcard.get_properties_by_name("NICKNAME").len(), 1);
+        assert_eq!(vcard.get_properties_by_name("NICKNAME").first().unwrap().export(), "NICKNAME:Johnny\n");
+
+        // Test removing a multiple property.
+        vcard.remove_property(&nickname_property).unwrap();
+        assert_eq!(vcard.get_properties_by_name("NICKNAME").len(), 0);
+
+        // Test removing a fn property.
+        assert!(Vcard::new("John Doe").remove_property(&vcard.get_property_by_name("FN").unwrap()).is_err());
     }
 }

@@ -1,377 +1,174 @@
 //! # vCard Parser
 //!
-//! Parses and validates vCard data according to RFC 6350 specification.
+//! Parses and validates [vCard data](vcard) according to [RFC 6350](https://datatracker.ietf.org/doc/html/rfc6350) specification.
 //!
 //! ## Creating vCards
 //!
 //! ```rust
+//! use vcard_parser::vcard::property::Property;
 //! use vcard_parser::vcard::Vcard;
 //!
-//! let mut vcard = Vcard::default();
-//! vcard.add_property("NICKNAME:Johnny").expect("Unable to add property.");
-//! println!("{}", vcard.to_string());
+//! let mut vcard = Vcard::new("John Doe");
+//!
+//! // Add a nickname property.
+//! let mut property = Property::try_from("NICKNAME:Johnny\n").expect("Unable to parse property.");
+//! vcard.set_property(&property).expect("Unable to add property.");
+//!
+//! // Print vCard with pids and clientpidmap info.
+//! print!("{}", vcard);
+//!
+//! // Export vCard without any ids.
+//! print!("{}", vcard.export());
 //! ```
 //!
 //! ## Parsing vCards
 //!
-//! vCards can be parsed from a string containing multiple vCards or a single vCard.
+//! vCards can be parsed from a string containing multiple vCards using the main [`parse_vcards()`] or [`parse_vcards_with_client()`] functions,
+//! or from a string containing one vCard using [`Vcard::try_from`].
 //!
-//! When parsing you typically would just use the [parse_to_vcards](parse_to_vcards) or [parse_to_vcards_without_errors](parse_to_vcards_without_errors)
-//! functions. You can also use [Vcard::from](Vcard::from) and [Vcard::try_from](Vcard::try_from<&str>()), but without passing
-//! BEGIN:VCARD and END:VCARD delimiters. See the main [Vcard](Vcard) struct for more information.
+//! ```rust
+//! use vcard_parser::parse_vcards;
+//! use vcard_parser::vcard::Vcard;
 //!
-//! ### Parsing from file
+//! let mut vcards = parse_vcards("BEGIN:VCARD\nVERSION:4.0\nFN:John Doe\nEND:VCARD\n").expect("Unable to parse string.");
+//! assert_eq!(vcards.len(), 1);
+//!
+//! let mut vcard = Vcard::try_from("BEGIN:VCARD\nVERSION:4.0\nFN:John Doe\nEND:VCARD\n").expect("Unable to parse string.");
+//! assert_eq!(vcard.get_properties().len(), 1)
+//! ```
+//!
+//! ## Parsing from file
 //!
 //! Read a vcf file and ignore invalid properties, update the vCard object, and write back to file.
 //!
 //! ```rust
-//! use std::fs;
-//! use std::fs::read_to_string;
-//! use vcard_parser::parse_to_vcards_without_errors;
-//! use vcard_parser::vcard::property::types::PropertyType;
+//! use std::fs::{read_to_string, write};
+//! use vcard_parser::parse_vcards;
+//! use vcard_parser::traits::HasValue;
+//! use vcard_parser::vcard::value::Value;
+//! use vcard_parser::vcard::value::value_text::ValueTextData;
 //!
-//! if let Ok(string) = read_to_string("contacts.vcf") {
-//!     let mut vcards = parse_to_vcards_without_errors(string.as_str());
+//! let input = read_to_string("contacts.vcf").unwrap_or(String::from("BEGIN:VCARD\nVERSION:4.0\nFN:\nEND:VCARD\n"));
+//! let mut vcards = parse_vcards(input.as_str()).expect("Unable to parse string.");
 //!
-//!     let mut vcard = vcards.first().unwrap().clone();
-//!     let property = vcard.get_property_by_type(&PropertyType::Fn).unwrap();
+//! let vcard = vcards.first_mut().unwrap();
+//! let mut property = vcard.get_property_by_name("FN").unwrap();
 //!
-//!     vcard.update_property(property.get_uuid(), "FN:John Doe").expect("Unable to update property.");
-//!     vcards[0] = vcard;
+//! property.set_value(Value::from(ValueTextData::from("John Doe"))).unwrap();
+//! vcard.set_property(&property).expect("Unable to update property.");
 //!
-//!     let mut data = String::new();
-//!     for vcard in vcards {
-//!         data.push_str(vcard.to_string().as_str())
-//!     }
-//!     fs::write("contacts.vcf", data).expect("Unable to write file.");
+//! let mut data = String::new();
+//! for vcard in vcards {
+//!     data.push_str(vcard.export().as_str())
 //! }
+//!
+//! // write("contacts.vcf", data).expect("Unable to write file.");
 //! ```
 
-pub extern crate uuid;
-
-use regex::Regex;
-
 use crate::error::VcardError;
+use crate::traits::{HasCardinality, HasName, HasParameters, HasValue};
+use crate::vcard::property::Property;
 use crate::vcard::Vcard;
 
-/// Contains API error types.
+pub mod constants;
 pub mod error;
-
-/// Contains utility functions.
-pub mod util;
-
-/// Main vCard object for parsing, storing, and exporting vCard data.
+pub mod parse;
+pub mod traits;
 pub mod vcard;
-
-/// Parse a string and return an array of individual vCard strings as the result.
-///
-/// This function will capture all strings delimited by BEGIN:VCARD and END:VCARD, returning an array
-/// of strings without the delimiters.
-///
-/// # Examples
-/// ```
-/// use vcard_parser::{parse_to_vcards, parse_to_strings};
-///
-/// let text = r#"
-/// BEGIN:VCARD
-/// VERSION:4.0
-/// FN:John Doe
-/// END:VCARD
-/// "#;
-///
-/// let vcard_strings = parse_to_strings(text);
-/// assert_eq!(vcard_strings.len(), 1);
-/// ```
-pub fn parse_to_strings(input: &str) -> Vec<String> {
-    let mut data: Vec<String> = Vec::new();
-
-    let input = Regex::new(r"(?mi)^\s*(BEGIN|END):VCARD\s*?$").unwrap().replace_all(input, "$1:VCARD");
-    let input = Regex::new(r"(?mi)\n\s").unwrap().replace_all(&*input, "");
-
-    if let Ok(regex) = Regex::new(r"(?mi)\s*?BEGIN:VCARD\s*?$\n([\s\S]*?)\s*?END:VCARD\s*?$\n?") {
-        for captures in regex.captures_iter(&*input) {
-            if let Some(capture) = captures.get(1) {
-                data.push(capture.as_str().to_string())
-            }
-        }
-    }
-
-    data
-}
 
 /// Parses a string and returns either a [VcardError](VcardError) or an array of [Vcard](Vcard)s as the result.
 ///
-/// The input string can be a single vCard or multiple vCards, and should be delimited by BEGIN:VCARD and END:VCARD.
-///
-/// This function will fail on vCards with x-param or iana-token types, as well as custom parameters. Use the other
-/// version [parse_to_vcards_without_errors](parse_to_vcards_without_errors) to ignore properties that are unknown or contain unknown properties
-/// or custom parameters.
+/// The input string can be a single vCard or multiple vCards, formatted as per [RFC 6350 Section 3.3](https://datatracker.ietf.org/doc/html/rfc6350#section-3.3)
 ///
 /// # Examples
 /// ```
-/// use vcard_parser::parse_to_vcards;
+/// use vcard_parser::parse_vcards;
 ///
-/// let text = r#"
-/// BEGIN:VCARD
-/// VERSION:4.0
-/// FN:John Doe
-/// END:VCARD
-/// "#;
-///
-/// let vcards = parse_to_vcards(text).expect("Unable to parse text.");
+/// let vcards = parse_vcards("BEGIN:VCARD\nVERSION:4.0\nFN:\nEND:VCARD\n").expect("Unable to parse text.");
 /// assert_eq!(vcards.len(), 1);
 /// ```
-pub fn parse_to_vcards(input: &str) -> Result<Vec<Vcard>, VcardError> {
+pub fn parse_vcards(input: &str) -> Result<Vec<Vcard>, VcardError> {
     let mut vcards = Vec::new();
 
-    for string in parse_to_strings(input) {
-        vcards.push(Vcard::try_from(string.as_str())?);
+    for data in parse::vcard::vcards(input.as_bytes())?.1 {
+        vcards.push(Vcard::try_from((None, data))?);
     }
 
     Ok(vcards)
 }
 
-/// Parses a vCard string and returns an array of vCards.
+/// Takes a client and vcard string(s) and returns either a [VcardError](VcardError) or an array of [Vcard](Vcard)s as the result.
 ///
-/// The input string can be a single vCard or multiple vCards, and should be delimited by BEGIN:VCARD and END:VCARD.
-///
-/// This function will ignore x-param or iana-token properties, as well as custom parameters. Use the other version
-/// [parse_to_vcards](parse_to_vcards) if you vcards with x-param, iana-token, or other custom types to fail completely.
+/// The input string can be a single vCard or multiple vCards, formatted as per [RFC 6350 Section 3.3](https://datatracker.ietf.org/doc/html/rfc6350#section-3.3)
 ///
 /// # Examples
 /// ```
-/// use vcard_parser::parse_to_vcards_without_errors;
+/// use vcard_parser::parse_vcards_with_client;
 ///
-/// let text = r#"
-/// BEGIN:VCARD
-/// VERSION:4.0
-/// FN:John Doe
-/// END:VCARD
-/// "#;
-///
-/// let vcards = parse_to_vcards_without_errors(text);
+/// let vcards = parse_vcards_with_client("urn:uuid:someid", "BEGIN:VCARD\nVERSION:4.0\nFN:\nEND:VCARD\n").expect("Unable to parse text.");
 /// assert_eq!(vcards.len(), 1);
 /// ```
-pub fn parse_to_vcards_without_errors(input: &str) -> Vec<Vcard> {
+pub fn parse_vcards_with_client(client: &str, input: &str) -> Result<Vec<Vcard>, VcardError> {
     let mut vcards = Vec::new();
 
-    for string in parse_to_strings(input) {
-        vcards.push(Vcard::from(string.as_str()));
+    for data in parse::vcard::vcards(input.as_bytes())?.1 {
+        vcards.push(Vcard::try_from((Some(client.to_string()), data))?);
     }
 
-    vcards
+    Ok(vcards)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{parse_to_vcards, parse_to_vcards_without_errors, VcardError};
+    use crate::constants::{TestData, VcardParseError};
+    use crate::{parse_vcards, VcardError};
 
-    #[test]
-    fn vcard_no_version() {
-        let result = parse_to_vcards("BEGIN:VCARD\r\nFN:John Doe\r\nEND:VCARD");
-        assert!(matches!(result, Err(VcardError::PropertyMissing(_))));
+    fn _match((a, b): (&str, &str)) {
+        assert_eq!(parse_vcards(a).unwrap().first().unwrap().export(), b.to_string())
     }
 
     #[test]
-    fn vcard_no_fullname() {
-        let result = parse_to_vcards("BEGIN:VCARD\r\nVERSION:4.0\r\nEND:VCARD");
-        assert!(matches!(result, Err(VcardError::PropertyMissing(_))));
+    fn parse_no_version() {
+        assert_eq!(parse_vcards(TestData::VCARD_ERROR_VERSION_MISSING).unwrap_err().parse_error().as_str(), VcardParseError::PROPERTY_VERSION_MISSING);
     }
 
     #[test]
-    fn vcard_missing_begin() {
-        let result = parse_to_vcards("VERSION:4.0\r\nFN:John Doe\r\nEND:VCARD");
-        assert!(result.unwrap().is_empty());
+    fn parse_no_fullname() {
+        assert!(matches!(parse_vcards(TestData::VCARD_ERROR_FULLNAME_MISSING), Err(VcardError::PropertyFnMissing)));
     }
 
     #[test]
-    fn vcard_missing_end() {
-        let result = parse_to_vcards("BEGIN:VCARD\r\nVERSION:4.0\r\nFN:John Doe\r\n");
-        assert!(result.unwrap().is_empty());
+    fn parse_begin_missing() {
+        assert_eq!(parse_vcards(TestData::VCARD_ERROR_BEGIN_MISSING).unwrap_err().parse_error().as_str(), VcardParseError::PROPERTY_BEGIN_MISSING);
     }
 
     #[test]
-    fn vcard_missing_begin_valid() {
-        let result = parse_to_vcards("BEGIN:\r\nVERSION:4.0\r\nFN:John Doe\r\nEND:VCARD");
-        assert!(result.unwrap().is_empty());
-        let result = parse_to_vcards("BEGIN:VCARDS\r\nVERSION:4.0\r\nFN:John Doe\r\nEND:VCARD");
-        assert!(result.unwrap().is_empty());
-        let result = parse_to_vcards("   BEGIN:VCARD   \r\nVERSION:4.0\r\nFN:John Doe\r\nEND:VCARD");
-        assert_eq!(result.unwrap().len(), 1);
-        let result = parse_to_vcards("   \tBEGIN:VCARD\t   \r\nVERSION:4.0\r\nFN:John Doe\r\nEND:VCARD");
-        assert_eq!(result.unwrap().len(), 1);
+    fn parse_end_missing() {
+        assert_eq!(parse_vcards(TestData::VCARD_ERROR_END_MISSING).unwrap_err().parse_error().as_str(), VcardParseError::PROPERTY_END_MISSING);
     }
 
     #[test]
-    fn vcard_missing_end_valid() {
-        let result = parse_to_vcards("BEGIN:VCARD\r\nVERSION:4.0\r\nFN:John Doe\r\nEND:");
-        assert!(result.unwrap().is_empty());
-        let result = parse_to_vcards("BEGIN:VCARD\r\nVERSION:4.0\r\nFN:John Doe\r\nEND:VCARDS");
-        assert!(result.unwrap().is_empty());
-        let result = parse_to_vcards("BEGIN:VCARD\r\nVERSION:4.0\r\nFN:John Doe\r\nEND:VCARD");
-        assert_eq!(result.unwrap().len(), 1);
-        let result = parse_to_vcards("BEGIN:VCARD\r\nVERSION:4.0\r\nFN:John Doe\r\n   \tEND:VCARD   \t");
-        assert_eq!(result.unwrap().len(), 1);
+    fn parse_version_3() {
+        assert_eq!(parse_vcards(TestData::VCARD_ERROR_VERSION_INCORRECT).unwrap_err().parse_error().as_str(), VcardParseError::PROPERTY_VERSION);
     }
 
     #[test]
-    fn vcard_version_3() {
-        let result = parse_to_vcards("BEGIN:VCARD\r\nVERSION:3.0\r\nFN:John Doe\r\nEND:VCARD");
-        assert!(matches!(result, Err(VcardError::VersionInvalid(_))));
+    fn parse_sample_minimal() {
+        _match(TestData::VCARD_MATCH_MINIMAL);
     }
 
     #[test]
-    fn vcard_version_4() {
-        let result = parse_to_vcards("BEGIN:VCARD\r\nVERSION:4.0\r\nFN:John Doe\r\nEND:VCARD");
-        assert_eq!(result.unwrap().len(), 1);
+    fn parse_concat() {
+        _match(TestData::VCARD_MATCH_CONCAT);
     }
 
     #[test]
-    fn vcard_concat_tab() {
-        let text = "BEGIN:VCARD\r\nVERSION:4.0\r\nFN:John Doe\r\nN:Doe;John\r\n\t;Jr.;;\r\nEND:VCARD";
-        let result = parse_to_vcards(text);
-        assert!(matches!(result, Ok(_)));
-        let vcards = result.unwrap();
-        assert_eq!(vcards.len(), 1);
+    fn parse_xname() {
+        _match(TestData::VCARD_MATCH_XNAME);
     }
 
     #[test]
-    fn vcard_x_param_single() {
-        let text = r#"BEGIN:VCARD
-VERSION:4.0
-FN:John Doe
-ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
-X-ABADR:us
-END:VCARD
-"#;
-        let expected = r#"BEGIN:VCARD
-VERSION:4.0
-FN:John Doe
-ADR;TYPE=HOME;TYPE=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
-END:VCARD
-"#;
-        let result = parse_to_vcards_without_errors(text);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].to_string(), expected);
-    }
-
-    #[test]
-    fn vcard_x_param_grouped() {
-        let text = r#"BEGIN:VCARD
-VERSION:4.0
-FN:John Doe
-item1.ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
-item1.X-ABADR:us
-END:VCARD
-"#;
-        let expected = r#"BEGIN:VCARD
-VERSION:4.0
-FN:John Doe
-ADR;TYPE=HOME;TYPE=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
-END:VCARD
-"#;
-        let result = parse_to_vcards_without_errors(text);
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].to_string(), expected);
-    }
-
-    #[test]
-    fn sample_minimal() {
-        let text = r#"
-BEGIN:VCARD
-VERSION:4.0
-FN:John Doe
-END:VCARD
-"#;
-        let result = parse_to_vcards(text);
-        assert_eq!(result.unwrap().len(), 1);
-    }
-
-    #[test]
-    fn sample_single() {
-        let text = r#"
-BEGIN:VCARD
-VERSION:4.0
-N:Doe;John;;;
-FN:John Doe
-ORG:ACME Inc.;
-EMAIL;type=INTERNET;type=HOME;type=pref:user@example.com
-EMAIL;type=INTERNET;type=WORK:acme@example.com
-TEL;type=CELL;type=VOICE;type=pref:+1 (555) 555-5555
-TEL;type=IPHONE;type=CELL;type=VOICE:+1 (555) 555-5550
-ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
-ADR;type=WORK:;;First St SE;Washington;DC;20004;United States
-NOTE:Lorem ipsum dolor sit amet\, consectetur adipiscing elit\, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam\, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident\, sunt in culpa qui officia deserunt mollit anim id est laborum.
-BDAY:2000-01-01
-END:VCARD
-"#;
-        let result = parse_to_vcards(text);
-        assert_eq!(result.unwrap().len(), 1);
-    }
-
-    #[test]
-    fn sample_multiple() {
-        let text = r#"BEGIN:VCARD
-VERSION:4.0
-N:Doe;John;;;
-FN:John Doe
-ORG:ACME Inc.;
-EMAIL;type=INTERNET;type=HOME;type=pref:user@example.com
-EMAIL;type=INTERNET;type=WORK:acme@example.com
-TEL;type=CELL;type=VOICE;type=pref:+1 (555) 555-5555
-TEL;type=IPHONE;type=CELL;type=VOICE:+1 (555) 555-5550
-ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
-ADR;type=WORK:;;First St SE;Washington;DC;20004;United States
-NOTE:Lorem ipsum dolor sit amet\, consectetur adipiscing elit\, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam\, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident\, sunt in culpa qui officia deserunt mollit anim id est laborum.
-BDAY:2000-01-01
-END:VCARD
-BEGIN:VCARD
-VERSION:4.0
-N:Doe;John;;;
-FN:John Doe
-ORG:ACME Inc.;
-EMAIL;type=INTERNET;type=HOME;type=pref:user@example.com
-EMAIL;type=INTERNET;type=WORK:acme@example.com
-TEL;type=CELL;type=VOICE;type=pref:+1 (555) 555-5555
-TEL;type=IPHONE;type=CELL;type=VOICE:+1 (555) 555-5550
-ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;Washington;DC;20500;United States
-ADR;type=WORK:;;First St SE;Washington;DC;20004;United States
-NOTE:Lorem ipsum dolor sit amet\, consectetur adipiscing elit\, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam\, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident\, sunt in culpa qui officia deserunt mollit anim id est laborum.
-BDAY:2000-01-01
-END:VCARD
-"#;
-        let result = parse_to_vcards(text);
-        match result {
-            Ok(_) => {
-                assert_eq!(result.unwrap().len(), 2);
-            }
-            Err(_) => {
-                assert!(matches!(result, Err(VcardError::PropertyValueInvalid(_))));
-            }
-        }
-    }
-
-    #[test]
-    fn sample_with_concat() {
-        let text = r#"
-BEGIN:VCARD
-VERSION:4.0
-N:Doe;John;;;
-FN:John Doe
-ORG:ACME Inc.;
-EMAIL;type=INTERNET;type=HOME;type=pref:user@example.com
-EMAIL;type=INTERNET;type=WORK:acme@example.com
-TEL;type=CELL;type=VOICE;type=pref:+1 (555) 555-5555
-TEL;type=IPHONE;type=CELL;type=VOICE:+1 (555) 555-5550
-ADR;type=HOME;type=pref:;;1600 Pennsylvania Avenue NW;
- Washington;DC;20500;
- United States
-ADR;type=WORK:;;First St SE;Washington;DC;20004;United States
-NOTE:Lorem ipsum dolor sit amet\, consectetur adipiscing elit\, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam\, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident\, sunt in culpa qui officia deserunt mollit anim id est laborum.
-BDAY:2000-01-01
-END:VCARD
-"#;
-        let result = parse_to_vcards(text);
-        assert_eq!(result.unwrap().len(), 1);
+    fn sample_compound() {
+        _match(TestData::VCARD_MATCH_COMPOUND);
     }
 }

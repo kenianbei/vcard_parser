@@ -109,7 +109,7 @@ impl Vcard {
     /// let property = vcard.get_property(&property);
     /// assert!(property.is_some());
     /// ```
-    pub fn get_property(&mut self, property: &Property) -> Option<Property> {
+    pub fn get_property(&self, property: &Property) -> Option<Property> {
         if let Some(i) = self.get_property_index(property) {
             return self.properties.get(i).cloned();
         }
@@ -129,7 +129,7 @@ impl Vcard {
     /// let property = vcard.get_property(&property);
     /// assert!(property.is_some());
     /// ```
-    pub fn get_property_ref(&mut self, property: &Property) -> Option<&Property> {
+    pub fn get_property_ref(&self, property: &Property) -> Option<&Property> {
         if let Some(i) = self.get_property_index(property) {
             return self.properties.get(i);
         }
@@ -171,8 +171,8 @@ impl Vcard {
     /// let property = vcard.get_property_by_name("BDAY");
     /// assert!(property.is_some());
     /// ```
-    pub fn get_property_by_name(&mut self, str: &str) -> Option<Property> {
-        if let Some(property) = self.properties.iter_mut().find(|p| p.name() == str && p.is_single()) {
+    pub fn get_property_by_name(&self, str: &str) -> Option<Property> {
+        if let Some(property) = self.properties.iter().find(|p| p.name() == str && p.is_single()) {
             return Some(property.clone());
         }
 
@@ -264,18 +264,16 @@ impl Vcard {
         let mut property = property.clone();
 
         // Add pid information to the property if it doesn't match an existing property.
-        if property.is_multiple() && property.name() != PropertyName::CLIENTPIDMAP && property.allowed_parameters().contains(&ParameterName::PID) {
-            if None == self.get_property_index(&property) {
-                let count = self.get_properties_by_name(property.name()).len();
-                let string = {
-                    if let Some(clientpidmap) = self.get_clientpidmap() {
-                        format!(";PID={}.{}", count + 1, clientpidmap.id)
-                    } else {
-                        format!(";PID={}", count + 1)
-                    }
-                };
-                property.add_parameter(Parameter::try_from(string.as_str())?)?;
-            }
+        if property.is_multiple() && property.name() != PropertyName::CLIENTPIDMAP && property.allowed_parameters().contains(&ParameterName::PID) && None == self.get_property_index(&property) {
+            let count = self.get_properties_by_name(property.name()).len();
+            let string = {
+                if let Some(clientpidmap) = self.get_clientpidmap() {
+                    format!(";PID={}.{}", count + 1, clientpidmap.id)
+                } else {
+                    format!(";PID={}", count + 1)
+                }
+            };
+            property.add_parameter(Parameter::try_from(string.as_str())?)?;
         }
 
         // Update or add property depending on match.
@@ -365,12 +363,12 @@ impl TryFrom<(Option<String>, Vec<Property>)> for Vcard {
 
 impl Display for Vcard {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "BEGIN:VCARD\n")?;
-        write!(f, "VERSION:4.0\n")?;
+        writeln!(f, "BEGIN:VCARD")?;
+        writeln!(f, "VERSION:4.0")?;
         for property in self.get_properties().iter() {
             write!(f, "{}", property)?;
         }
-        write!(f, "END:VCARD\n")?;
+        writeln!(f, "END:VCARD")?;
         Ok(())
     }
 }

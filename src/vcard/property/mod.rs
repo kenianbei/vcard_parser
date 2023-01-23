@@ -424,7 +424,8 @@ impl Display for Property {
         }
 
         write!(f, ":{}", self.get_value())?;
-        write!(f, "\n")?;
+
+        writeln!(f)?;
 
         Ok(())
     }

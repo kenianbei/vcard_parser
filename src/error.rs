@@ -1,7 +1,7 @@
 //! Error types and handling.
 
 use std::fmt::{Display, Formatter};
-
+use std::error::Error;
 use nom::error::{ContextError, ErrorKind, ParseError};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -113,3 +113,5 @@ impl Display for VcardError {
         }
     }
 }
+
+impl Error for VcardError {}

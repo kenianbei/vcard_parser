@@ -13,7 +13,7 @@ Add the library to the dependencies section of your cargo.toml file.
 
 ```toml
 [dependencies]
-vcard_parser = "0.2.1"
+vcard_parser = "0.2.2"
 ```
 
 ## Usage

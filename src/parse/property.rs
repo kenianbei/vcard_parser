@@ -6,7 +6,6 @@ use nom::character::complete::line_ending;
 use nom::combinator::{not, opt, peek, recognize};
 use nom::error::context;
 use nom::multi::many0;
-use nom::sequence::tuple;
 use nom::{IResult, Parser};
 
 use crate::constants::{PropertyName, VcardParseError};
@@ -18,7 +17,7 @@ use crate::VcardError;
 
 /// Parse all properties that aren't delimiters (BEGIN, VERSION, END).
 pub fn property(i: Data) -> IResult<Data, PropertyData, VcardError> {
-    match context(VcardParseError::PROPERTY, tuple((property_name, many0(parameter), colon, property_value, line_ending)))(i) {
+    match context(VcardParseError::PROPERTY, (property_name, many0(parameter), colon, property_value, line_ending)).parse(i) {
         Ok((i, (property_name, parameters, _, value, _))) => Ok((i, (property_name, parameters, value))),
         Err(err) => Err(err),
     }
@@ -26,7 +25,7 @@ pub fn property(i: Data) -> IResult<Data, PropertyData, VcardError> {
 
 /// Parse BEGIN property.
 pub fn property_begin(i: Data) -> IResult<Data, (PropertyNameData, PropertyParametersData, ValueData), VcardError> {
-    match context(VcardParseError::PROPERTY_BEGIN, tuple((property_name_begin, colon, tag("VCARD"), line_ending)))(i) {
+    match context(VcardParseError::PROPERTY_BEGIN, (property_name_begin, colon, tag("VCARD"), line_ending)).parse(i) {
         Ok((i, (property_name, _, value, _))) => Ok((i, (property_name, Vec::new(), value))),
         Err(err) => Err(err),
     }
@@ -34,7 +33,7 @@ pub fn property_begin(i: Data) -> IResult<Data, (PropertyNameData, PropertyParam
 
 /// Parse VERSION property.
 pub fn property_version(i: Data) -> IResult<Data, (PropertyNameData, PropertyParametersData, ValueData), VcardError> {
-    match context(VcardParseError::PROPERTY_VERSION, tuple((property_name_version, colon, tag("4.0"), line_ending)))(i) {
+    match context(VcardParseError::PROPERTY_VERSION, (property_name_version, colon, tag("4.0"), line_ending)).parse(i) {
         Ok((i, (property_name, _, value, _))) => Ok((i, (property_name, Vec::new(), value))),
         Err(err) => Err(err),
     }
@@ -42,7 +41,7 @@ pub fn property_version(i: Data) -> IResult<Data, (PropertyNameData, PropertyPar
 
 /// Parse END property.
 pub fn property_end(i: Data) -> IResult<Data, (PropertyNameData, PropertyParametersData, ValueData), VcardError> {
-    match context(VcardParseError::PROPERTY_END, tuple((property_name_end, colon, tag("VCARD"), line_ending)))(i) {
+    match context(VcardParseError::PROPERTY_END, (property_name_end, colon, tag("VCARD"), line_ending)).parse(i) {
         Ok((i, (property_name, _, value, _))) => Ok((i, (property_name, Vec::new(), value))),
         Err(err) => Err(err),
     }
@@ -51,7 +50,7 @@ pub fn property_end(i: Data) -> IResult<Data, (PropertyNameData, PropertyParamet
 /// Parse property value.
 /// TODO: Decide whether to add escaping here.
 pub fn property_value(i: Data) -> IResult<Data, ValueFoldedData, VcardError> {
-    match context(VcardParseError::PROPERTY_VALUE, tuple((value, peek(line_ending))))(i) {
+    match context(VcardParseError::PROPERTY_VALUE, (value, peek(line_ending))).parse(i) {
         Ok((i, (data, _))) => Ok((i, data)),
         Err(err) => Err(err),
     }
@@ -61,7 +60,7 @@ pub fn property_value(i: Data) -> IResult<Data, ValueFoldedData, VcardError> {
 pub fn property_name(i: Data) -> IResult<Data, PropertyNameWithGroupData, VcardError> {
     match context(
         VcardParseError::PROPERTY_NAME,
-        tuple((
+        (
             opt(property_group),
             alt((
                 alt((property_name_adr, property_name_anniversary, property_name_bday, property_name_birthplace, property_name_caladruri, property_name_caluri, property_name_categories, property_name_clientpidmap, property_name_contacturi, property_name_deathdate, property_name_deathplace)),
@@ -70,8 +69,9 @@ pub fn property_name(i: Data) -> IResult<Data, PropertyNameWithGroupData, VcardE
                 alt((property_name_rev, property_name_role, property_name_sound, property_name_source, property_name_tel, property_name_title, property_name_tz, property_name_uid, property_name_url, property_name_xml)),
                 alt((property_x_name, property_iana_token)),
             )),
-        )),
-    )(i)
+        ),
+    )
+    .parse(i)
     {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
@@ -80,7 +80,7 @@ pub fn property_name(i: Data) -> IResult<Data, PropertyNameWithGroupData, VcardE
 
 /// Parse property group name.
 pub fn property_group(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::PROPERTY_GROUP, tuple((take_while1(is_alphanumeric_dash), tag("."), peek(property_name))))(i) {
+    match context(VcardParseError::PROPERTY_GROUP, (take_while1(is_alphanumeric_dash), tag("."), peek(property_name))).parse(i) {
         Ok((i, (s, _, _))) => Ok((i, s)),
         Err(err) => Err(err),
     }
@@ -88,7 +88,7 @@ pub fn property_group(i: Data) -> IResult<Data, Data, VcardError> {
 
 /// Parse BEGIN property name.
 pub fn property_name_begin(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::PROPERTY_BEGIN_MISSING, tag_no_case(PropertyName::BEGIN))(i) {
+    match context(VcardParseError::PROPERTY_BEGIN_MISSING, tag_no_case(PropertyName::BEGIN)).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
@@ -96,7 +96,7 @@ pub fn property_name_begin(i: Data) -> IResult<Data, Data, VcardError> {
 
 /// Parse VERSION property name.
 pub fn property_name_version(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::PROPERTY_VERSION_MISSING, tag_no_case(PropertyName::VERSION))(i) {
+    match context(VcardParseError::PROPERTY_VERSION_MISSING, tag_no_case(PropertyName::VERSION)).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
@@ -104,7 +104,7 @@ pub fn property_name_version(i: Data) -> IResult<Data, Data, VcardError> {
 
 /// Parse END property name.
 pub fn property_name_end(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::PROPERTY_END_MISSING, tag_no_case(PropertyName::END))(i) {
+    match context(VcardParseError::PROPERTY_END_MISSING, tag_no_case(PropertyName::END)).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
@@ -456,7 +456,7 @@ pub fn property_name_xml(i: Data) -> IResult<Data, Data, VcardError> {
 
 /// Parse iana-token property name.
 pub fn property_iana_token(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::PROPERTY_IANA_TOKEN, not(property_name_begin).and(not(property_name_version).and(not(property_name_end).and(take_while1(is_alphanumeric_dash)))))(i) {
+    match context(VcardParseError::PROPERTY_IANA_TOKEN, not(property_name_begin).and(not(property_name_version).and(not(property_name_end).and(take_while1(is_alphanumeric_dash))))).parse(i) {
         Ok((i, (_, (_, (_, s))))) => Ok((i, s)),
         Err(err) => Err(err),
     }
@@ -464,7 +464,7 @@ pub fn property_iana_token(i: Data) -> IResult<Data, Data, VcardError> {
 
 /// Parse x-name property name.
 pub fn property_x_name(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::PROPERTY_XNAME, recognize(tuple((tag_no_case("x-"), take_while1(is_alphanumeric_dash)))))(i) {
+    match context(VcardParseError::PROPERTY_XNAME, recognize((tag_no_case("x-"), take_while1(is_alphanumeric_dash)))).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }

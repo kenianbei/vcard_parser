@@ -2,12 +2,10 @@
 
 use nom::bytes::complete::take_while;
 use nom::character::complete::char;
-use nom::character::is_alphanumeric;
 use nom::combinator::{opt, recognize};
 use nom::error::context;
 use nom::multi::many0;
-use nom::sequence::tuple;
-use nom::IResult;
+use nom::{IResult, Parser};
 
 use crate::constants::VcardParseError;
 use crate::parse::delimiters::fold;
@@ -15,28 +13,28 @@ use crate::parse::{Data, ValueData, ValueFoldedData};
 use crate::VcardError;
 
 pub fn value(i: Data) -> IResult<Data, ValueFoldedData, VcardError> {
-    match context(VcardParseError::VALUE, tuple((take_while(is_value_char), opt(many0(value_folded)))))(i) {
+    match context(VcardParseError::VALUE, (take_while(is_value_char), opt(many0(value_folded)))).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
 }
 
 pub fn value_folded(i: Data) -> IResult<Data, ValueData, VcardError> {
-    match context(VcardParseError::VALUE_FOLDED, tuple((fold, take_while(is_value_char))))(i) {
+    match context(VcardParseError::VALUE_FOLDED, (fold, take_while(is_value_char))).parse(i) {
         Ok((i, (_, s))) => Ok((i, s)),
         Err(err) => Err(err),
     }
 }
 
 pub fn value_qsafe(i: Data) -> IResult<Data, ValueData, VcardError> {
-    match context(VcardParseError::VALUE_QSAFE, recognize(tuple((char('"'), take_while(is_qsafe_char), char('"')))))(i) {
+    match context(VcardParseError::VALUE_QSAFE, recognize((char('"'), take_while(is_qsafe_char), char('"')))).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
 }
 
 pub fn value_safe(i: Data) -> IResult<Data, ValueData, VcardError> {
-    match context(VcardParseError::VALUE_SAFE, take_while(is_safe_char))(i) {
+    match context(VcardParseError::VALUE_SAFE, take_while(is_safe_char)).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
@@ -87,7 +85,7 @@ pub fn is_alphanumeric_dash(c: u8) -> bool {
         return true;
     }
 
-    is_alphanumeric(c)
+    c.is_ascii_alphanumeric()
 }
 
 pub fn utf8_to_string(u8: &[u8]) -> Result<String, VcardError> {

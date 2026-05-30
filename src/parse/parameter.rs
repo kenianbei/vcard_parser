@@ -4,8 +4,7 @@ use nom::branch::alt;
 use nom::bytes::complete::{tag_no_case, take_while1};
 use nom::combinator::recognize;
 use nom::error::context;
-use nom::sequence::tuple;
-use nom::IResult;
+use nom::{IResult, Parser};
 
 use crate::constants::{ParameterName, VcardParseError};
 use crate::parse::delimiters::{equals, semicolon};
@@ -15,7 +14,7 @@ use crate::VcardError;
 
 /// Parse any parameter.
 pub fn parameter(i: Data) -> IResult<Data, ParameterData, VcardError> {
-    match context(VcardParseError::PARAMETER, tuple((semicolon, parameter_name, equals, parameter_value)))(i) {
+    match context(VcardParseError::PARAMETER, (semicolon, parameter_name, equals, parameter_value)).parse(i) {
         Ok((i, (_, parameter_name, _, parameter_value))) => Ok((i, (parameter_name, parameter_value))),
         Err(err) => Err(err),
     }
@@ -23,7 +22,7 @@ pub fn parameter(i: Data) -> IResult<Data, ParameterData, VcardError> {
 
 /// Parse parameter value.
 pub fn parameter_value(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::PARAMETER_VALUE, alt((value_qsafe, value_safe)))(i) {
+    match context(VcardParseError::PARAMETER_VALUE, alt((value_qsafe, value_safe))).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
@@ -51,7 +50,8 @@ pub fn parameter_name(i: Data) -> IResult<Data, Data, VcardError> {
             parameter_name_value,
             parameter_x_name,
         )),
-    )(i)
+    )
+    .parse(i)
     {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
@@ -180,7 +180,7 @@ pub fn parameter_name_value(i: Data) -> IResult<Data, Data, VcardError> {
 
 /// Parse x-name parameter name.
 pub fn parameter_x_name(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::PARAMETER_XNAME, recognize(tuple((tag_no_case("x-"), take_while1(is_alphanumeric_dash)))))(i) {
+    match context(VcardParseError::PARAMETER_XNAME, recognize((tag_no_case("x-"), take_while1(is_alphanumeric_dash)))).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }

@@ -3,43 +3,42 @@
 use nom::bytes::complete::tag;
 use nom::character::complete::{line_ending, space1};
 use nom::error::context;
-use nom::sequence::tuple;
-use nom::IResult;
+use nom::{IResult, Parser};
 
 use crate::constants::VcardParseError;
 use crate::parse::Data;
 use crate::VcardError;
 
 pub fn colon(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::DELIMITER_COLON, tag(":"))(i) {
+    match context(VcardParseError::DELIMITER_COLON, tag(":")).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
 }
 
 pub fn comma(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::DELIMITER_COMMA, tag(","))(i) {
+    match context(VcardParseError::DELIMITER_COMMA, tag(",")).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
 }
 
 pub fn fold(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::DELIMITER_CONCAT, tuple((line_ending, space1)))(i) {
+    match context(VcardParseError::DELIMITER_CONCAT, (line_ending, space1)).parse(i) {
         Ok((i, (_, s))) => Ok((i, s)),
         Err(err) => Err(err),
     }
 }
 
 pub fn equals(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::DELIMITER_EQUALS, tag("="))(i) {
+    match context(VcardParseError::DELIMITER_EQUALS, tag("=")).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
 }
 
 pub fn semicolon(i: Data) -> IResult<Data, Data, VcardError> {
-    match context(VcardParseError::DELIMITER_SEMI_COLON, tag(";"))(i) {
+    match context(VcardParseError::DELIMITER_SEMI_COLON, tag(";")).parse(i) {
         Ok(data) => Ok(data),
         Err(err) => Err(err),
     }
